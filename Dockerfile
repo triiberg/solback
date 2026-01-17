@@ -12,6 +12,7 @@ FROM gcr.io/distroless/static-debian12
 
 WORKDIR /app
 COPY --from=build /out/solback /app/solback
+COPY --from=build /src/config.json /app/config.json
 
 ENV CONFIG_PATH=/app/secrets.json
 EXPOSE 8080

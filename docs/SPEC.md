@@ -25,9 +25,15 @@
 - IN_PROGRESS - actively being implemented
 - DONE_AND_LOCKED - implemented, tested, and must not be modified
 
+## Amendments
+- add config.json (store default source data URL: "https://www.eex.com/en/markets/energy-certificates/french-auctions-power" and comment "Default source") **Status:** DONE_AND_LOCKED
+- make sure config.json is in .gitignore **Status:** DONE_AND_LOCKED
+- make sure config.json is available in Docker container **Status:** DONE_AND_LOCKED
+- repo.go must check if sources table is empty add url and comment from config.json **Status:** DONE_AND_LOCKED
+
 ## Components 
 
-### 0. Go structure with load conf. **Status:** IN_PROGRESS
+### 0. Go structure with load conf. **Status:** DONE_AND_LOCKED
 
 ####  1. Dependencies:
 - Cron (create on example task that runs once in hour, prints out "hello")
@@ -53,7 +59,7 @@
 - main.go excluded from coverage
 
 
-### 1. Conteinerization. **Status:** WAITING
+### 1. Conteinerization. **Status:** DONE_AND_LOCKED
 
 #### 1. Containers
 
