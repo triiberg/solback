@@ -1,0 +1,7 @@
+.git/
+.vscode/
+bin/
+docs/
+agent-docs/
+secrets.json
+*.log

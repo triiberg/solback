@@ -88,8 +88,11 @@ Requirements:
 - Start API and DB as separate containers
 - API connects to DB via service name
 
+#### 3. Secrets:
+- add dsn into secrets.json
 
-
+#### 4. Expected result:
+- can run `go run cmd/main.go`
 
 ### 2. Component of retrieving first HTML. **Status:** WAITING
 

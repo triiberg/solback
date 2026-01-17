@@ -1,0 +1,35 @@
+version: "3.9"
+
+services:
+  api:
+    build:
+      context: .
+    environment:
+      - CONFIG_PATH=/app/secrets.json
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./secrets.json:/app/secrets.json:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16.4-alpine
+    environment:
+      POSTGRES_DB: solback
+      POSTGRES_USER: solback
+      POSTGRES_PASSWORD: solback
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U solback -d solback"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  db-data:
