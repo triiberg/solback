@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"log"
 	"os"
 
@@ -40,9 +42,39 @@ func main() {
 		log.Fatalf("create source service: %v", err)
 	}
 
+	logService, err := services.NewLogService(db)
+	if err != nil {
+		log.Fatalf("create log service: %v", err)
+	}
+
+	htmlService, err := services.NewHtmlService(nil)
+	if err != nil {
+		log.Fatalf("create html service: %v", err)
+	}
+
+	openAiService, err := services.NewOpenAiService(cfg.OpenAIAPIKey, logService, nil, "")
+	if err != nil {
+		log.Fatalf("create openai service: %v", err)
+	}
+
+	pipelineService, err := services.NewPipelineService(sourceService, htmlService, openAiService, logService)
+	if err != nil {
+		log.Fatalf("create pipeline service: %v", err)
+	}
+
 	sourcesController, err := controllers.NewSourcesController(sourceService)
 	if err != nil {
 		log.Fatalf("create sources controller: %v", err)
+	}
+
+	logsController, err := controllers.NewLogsController(logService)
+	if err != nil {
+		log.Fatalf("create logs controller: %v", err)
+	}
+
+	refreshController, err := controllers.NewRefreshController(pipelineService)
+	if err != nil {
+		log.Fatalf("create refresh controller: %v", err)
 	}
 
 	router := gin.New()
@@ -54,8 +86,14 @@ func main() {
 	if err := sourcesController.RegisterRoutes(router); err != nil {
 		log.Fatalf("register sources routes: %v", err)
 	}
+	if err := logsController.RegisterRoutes(router); err != nil {
+		log.Fatalf("register logs routes: %v", err)
+	}
+	if err := refreshController.RegisterRoutes(router); err != nil {
+		log.Fatalf("register refresh routes: %v", err)
+	}
 
-	if err := startCron(); err != nil {
+	if err := startCron(pipelineService); err != nil {
 		log.Fatalf("start cron: %v", err)
 	}
 
@@ -65,11 +103,21 @@ func main() {
 	}
 }
 
-func startCron() error {
+type pipelineRefresher interface {
+	Refresh(ctx context.Context) error
+}
+
+func startCron(service pipelineRefresher) error {
+	if service == nil {
+		return errors.New("html service is nil")
+	}
+
 	scheduler := cron.New()
 
 	if _, err := scheduler.AddFunc("@every 1h", func() {
-		log.Println("hello")
+		if err := service.Refresh(context.Background()); err != nil {
+			log.Printf("refresh sources: %v", err)
+		}
 	}); err != nil {
 		return err
 	}
