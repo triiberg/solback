@@ -37,7 +37,7 @@
 
 ####  1. Dependencies:
 - Cron (create on example task that runs once in hour, prints out "hello")
-- Gin for controllers (cmd/main.go , cmd/controllers/health.go)
+- Gin for controllers (cmd/main.go, cmd/controllers/health.go, etc)
 - Gorm for migration (internal/repos/repo.go - func Connect() and func Migrate())
 
 #### 2. Folder structure:
@@ -100,7 +100,30 @@ Requirements:
 #### 4. Expected result:
 - can run `go run cmd/main.go`
 
-### 2. Component of retrieving first HTML. **Status:** WAITING
+### 2. Component of retrieving first HTML. **Status:** IN_PROGRESS
+
+#### 1. Objectives
+- get URLs from sources table
+- loop through the source url entries and make HTTP GET request against every URL
+- read the contents into string (output to console)
+- the HTML retrieval mechanism must be triggered by Cron every hour or via controller GET /refresh
+- every round of data retrieval must be logged into log table: did the request succeeded or failed with datetime in UTC.
+- the fact of triggered data retrieval is observable through GET /logs endpoint
+
+#### 2. Coding
+- create LogService similar to SourceService that has functions to filter out n last records (order by datetime latest records first, limit by input parameter)
+- create GET /logs endpoint (controller) that is using LogService to get last n records (query param, default 20), JSON array of JSON objects
+- create service HtmlService, similar structure as SourceService
+- create functions that read slice of the URLs and make HTTP Get request to the URLs
+- the looper function must log into log table when it started
+- the looper function must log the HTTP GET call result code, was it successful or not with datetime in UTC 
+
+#### 3. Expected results
+- cron triggers process that retrieves data from URL(s) specified in sources table
+- GET /refresh endpoint tiggers process that retrieves data from URL(s) specified in source table, same process as the cron would trigger
+- the log entries were written into log table: 1. the fact that loop started 2. the result of http request
+- the log entries are observable using Get /logs end point with parameter `?n=<number of records>`
+- by default GET /log endpoint returns 20 rows in JSON object
 
 ### 3. Component of processing the Data using OpenAI API.  **Status:** WAITING
 
