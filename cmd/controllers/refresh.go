@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"errors"
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -41,10 +42,11 @@ func (c *RefreshController) RegisterRoutes(router *gin.Engine) error {
 }
 
 func (c *RefreshController) refresh(ctx *gin.Context) {
-	if err := c.service.Refresh(ctx.Request.Context()); err != nil {
-		ctx.JSON(http.StatusInternalServerError, ErrorResponse{Error: "failed to refresh sources"})
-		return
-	}
+	go func() {
+		if err := c.service.Refresh(context.Background()); err != nil {
+			log.Printf("refresh sources: %v", err)
+		}
+	}()
 
-	ctx.JSON(http.StatusOK, RefreshResponse{Status: "ok"})
+	ctx.JSON(http.StatusAccepted, RefreshResponse{Status: "started"})
 }

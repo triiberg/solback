@@ -48,7 +48,7 @@ func TestOpenAiServiceExtractZipLinkSuccess(t *testing.T) {
 		t.Fatalf("NewOpenAiService: %v", err)
 	}
 
-	result, err := service.ExtractZipLink(context.Background(), html)
+	result, err := service.ExtractZipLink(context.Background(), html, nil)
 	if err != nil {
 		t.Fatalf("ExtractZipLink: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestOpenAiServiceExtractZipLinkEmptyHTML(t *testing.T) {
 		t.Fatalf("NewOpenAiService: %v", err)
 	}
 
-	result, err := service.ExtractZipLink(context.Background(), "")
+	result, err := service.ExtractZipLink(context.Background(), "", nil)
 	if err != nil {
 		t.Fatalf("ExtractZipLink: %v", err)
 	}

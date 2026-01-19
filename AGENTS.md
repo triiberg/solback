@@ -2,6 +2,12 @@
 
 It's a Golang backend.
 
+## Editing rules
+- SPEC.md contains software development tasks and descriptions how to complete these tasks. By default work with the tasks that have **Status:** IN_PROGRESS. Amendments that have **Status:** IN_PROGRESS are also marked to work with in current iteration.
+- Tasks that have **Status:** WAITING haven't formed yet. They might provide context but the quality of the information is very low or missing.
+- Without consent, do not modify parts of the code that was created by tasks and descriptions marked as **Status:** DONE_AND_LOCKED. Asking consent is very okay. These tasks and descriptions are already implemented. Some of these have ammendments, so if you use them as a context, check for relevant amendments too. 
+- When asking permissions, make a numbered list of required modifications, so I can replay like: 1. yes 2. yes 3. no 4. yes  
+
 ## Specs
 
 Detailed instructions about project spec and tasks 

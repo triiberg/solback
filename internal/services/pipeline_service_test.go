@@ -41,19 +41,19 @@ type stubOpenAiExtractor struct {
 	err    error
 }
 
-func (s stubOpenAiExtractor) ExtractZipLink(ctx context.Context, html string) (OpenAiResult, error) {
+type stubZipDownloader struct {
+	result ZipResult
+	err    error
+}
+
+func (s stubOpenAiExtractor) ExtractZipLink(ctx context.Context, html string, eventID *string) (OpenAiResult, error) {
 	if s.err != nil {
 		return OpenAiResult{}, s.err
 	}
 	return s.result, nil
 }
 
-type stubZipDownloader struct {
-	result ZipResult
-	err    error
-}
-
-func (s stubZipDownloader) Download(ctx context.Context, link string, sourceURL string) (ZipResult, error) {
+func (s stubZipDownloader) Download(ctx context.Context, link string, sourceURL string, eventID *string) (ZipResult, error) {
 	if s.err != nil {
 		return ZipResult{}, s.err
 	}
@@ -77,9 +77,9 @@ type stubAuctionParser struct {
 	err    error
 }
 
-func (s stubAuctionParser) ParseAuctionResults(ctx context.Context, payload AuctionPayload) (AuctionResults, error) {
+func (s stubAuctionParser) ParseAuctionResults(ctx context.Context, payload AuctionPayload, eventID *string) (AuctionResults, error) {
 	if s.err != nil {
-		return AuctionResults{}, s.err
+		return s.result, s.err
 	}
 	return s.result, nil
 }
@@ -89,7 +89,7 @@ type stubDataStorer struct {
 	err   error
 }
 
-func (s *stubDataStorer) StoreAuctionResults(ctx context.Context, results AuctionResults) (int, error) {
+func (s *stubDataStorer) StoreAuctionResults(ctx context.Context, results AuctionResults, eventID *string) (int, error) {
 	if s.err != nil {
 		return 0, s.err
 	}
@@ -131,6 +131,11 @@ func TestPipelineServiceRefresh(t *testing.T) {
 
 	if len(logWriter.entries) < 3 {
 		t.Fatalf("log entries = %d, want at least 3", len(logWriter.entries))
+	}
+	for i, entry := range logWriter.entries {
+		if entry.eventID == nil || *entry.eventID == "" {
+			t.Fatalf("log entry %d missing eventID", i)
+		}
 	}
 	if logWriter.entries[0].action != LogActionDataRetrieval {
 		t.Fatalf("log action = %q, want %q", logWriter.entries[0].action, LogActionDataRetrieval)
@@ -178,5 +183,42 @@ func TestPipelineServiceRefreshSourceError(t *testing.T) {
 	}
 	if logWriter.entries[1].outcome != LogOutcomeFail {
 		t.Fatalf("log outcome = %q, want %q", logWriter.entries[1].outcome, LogOutcomeFail)
+	}
+}
+
+func TestPipelineServiceRefreshStoresPartialCsvResults(t *testing.T) {
+	sources := []models.Source{
+		{URL: "https://example.com/ok"},
+	}
+	htmlFetcher := stubHtmlFetcher{
+		results: map[string]HtmlResult{
+			"https://example.com/ok": {URL: "https://example.com/ok", StatusCode: http.StatusOK, Body: "<table></table>"},
+		},
+	}
+
+	logWriter := &stubLogWriter{}
+	dataStorer := &stubDataStorer{}
+	service, err := NewPipelineService(
+		stubSourceService{sources: sources},
+		htmlFetcher,
+		stubOpenAiExtractor{result: OpenAiResult{Link: "https://example.com/file.zip"}},
+		stubZipDownloader{result: ZipResult{URL: "https://example.com/file.zip", StatusCode: http.StatusOK, Bytes: []byte("zip")}},
+		stubZipProcessor{payloads: []AuctionPayload{{SourceFile: "file.xlsx", Participants: 1, Headers: []string{"Region", "Technology"}, Rows: [][]string{{"Region", "Tech"}}}}},
+		stubAuctionParser{
+			result: AuctionResults{SourceFile: "file.xlsx", Participants: 1, Rows: []AuctionRow{{Year: 2025, Month: 8, Region: "Region", Technology: "Tech", TotalVolumeAuctioned: 1, TotalVolumeSold: 1, WeightedAvgPriceEurPerMwh: 1}}},
+			err:    errors.New("partial parse failure"),
+		},
+		dataStorer,
+		logWriter,
+	)
+	if err != nil {
+		t.Fatalf("NewPipelineService: %v", err)
+	}
+
+	if err := service.Refresh(context.Background()); err == nil {
+		t.Fatalf("Refresh: expected error")
+	}
+	if dataStorer.count == 0 {
+		t.Fatalf("expected data rows to be stored")
 	}
 }

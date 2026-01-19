@@ -14,11 +14,16 @@ import (
 const defaultLogsLimit = 20
 
 type LogProvider interface {
-	GetLogs(ctx context.Context, limit int) ([]models.Log, error)
+	GetLogs(ctx context.Context, limit int, eventID string) ([]models.Log, error)
+	TruncateLogs(ctx context.Context) (int, error)
 }
 
 type LogsController struct {
 	service LogProvider
+}
+
+type DeleteLogsResponse struct {
+	Deleted int `json:"deleted"`
 }
 
 func NewLogsController(service LogProvider) (*LogsController, error) {
@@ -38,6 +43,7 @@ func (c *LogsController) RegisterRoutes(router *gin.Engine) error {
 	}
 
 	router.GET("/logs", c.getLogs)
+	router.DELETE("/logs", c.deleteLogs)
 	return nil
 }
 
@@ -48,13 +54,24 @@ func (c *LogsController) getLogs(ctx *gin.Context) {
 		return
 	}
 
-	logs, err := c.service.GetLogs(ctx.Request.Context(), limit)
+	eventID := parseLogsEventID(ctx)
+	logs, err := c.service.GetLogs(ctx.Request.Context(), limit, eventID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, ErrorResponse{Error: "failed to load logs"})
 		return
 	}
 
 	ctx.JSON(http.StatusOK, logs)
+}
+
+func (c *LogsController) deleteLogs(ctx *gin.Context) {
+	deleted, err := c.service.TruncateLogs(ctx.Request.Context())
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, ErrorResponse{Error: "failed to delete logs"})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, DeleteLogsResponse{Deleted: deleted})
 }
 
 func parseLogsLimit(ctx *gin.Context) (int, error) {
@@ -72,4 +89,12 @@ func parseLogsLimit(ctx *gin.Context) (int, error) {
 	}
 
 	return limit, nil
+}
+
+func parseLogsEventID(ctx *gin.Context) string {
+	eventID := ctx.Query("eventId")
+	if eventID == "" {
+		eventID = ctx.Query("event_id")
+	}
+	return eventID
 }

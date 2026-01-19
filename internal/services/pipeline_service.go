@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+
+	"github.com/google/uuid"
 )
 
 type PipelineService struct {
@@ -94,15 +96,16 @@ func (s *PipelineService) Refresh(ctx context.Context) error {
 		return errors.New("log service is nil")
 	}
 
+	eventID := uuid.NewString()
 	startMsg := "pipeline refresh started"
-	if err := s.logService.CreateLog(ctx, LogActionDataRetrieval, LogOutcomeSuccess, &startMsg); err != nil {
+	if err := s.logService.CreateLog(ctx, &eventID, LogActionDataRetrieval, LogOutcomeSuccess, &startMsg); err != nil {
 		return err
 	}
 
 	sources, err := s.sourceService.GetSources(ctx)
 	if err != nil {
 		failMsg := fmt.Sprintf("get sources: %v", err)
-		_ = s.logService.CreateLog(ctx, LogActionDataRetrieval, LogOutcomeFail, &failMsg)
+		_ = s.logService.CreateLog(ctx, &eventID, LogActionDataRetrieval, LogOutcomeFail, &failMsg)
 		return fmt.Errorf("get sources: %w", err)
 	}
 
@@ -110,7 +113,7 @@ func (s *PipelineService) Refresh(ctx context.Context) error {
 	for _, source := range sources {
 		if source.URL == "" {
 			failMsg := "source url is empty"
-			_ = s.logService.CreateLog(ctx, LogActionDataRetrieval, LogOutcomeFail, &failMsg)
+			_ = s.logService.CreateLog(ctx, &eventID, LogActionDataRetrieval, LogOutcomeFail, &failMsg)
 			if refreshErr == nil {
 				refreshErr = errors.New("source url is empty")
 			}
@@ -120,7 +123,7 @@ func (s *PipelineService) Refresh(ctx context.Context) error {
 		result, err := s.htmlService.Fetch(ctx, source.URL)
 		if err != nil {
 			failMsg := fmt.Sprintf("fetch url=%s: %v", source.URL, err)
-			_ = s.logService.CreateLog(ctx, LogActionDataRetrieval, LogOutcomeFail, &failMsg)
+			_ = s.logService.CreateLog(ctx, &eventID, LogActionDataRetrieval, LogOutcomeFail, &failMsg)
 			if refreshErr == nil {
 				refreshErr = fmt.Errorf("fetch url=%s: %w", source.URL, err)
 			}
@@ -133,7 +136,7 @@ func (s *PipelineService) Refresh(ctx context.Context) error {
 		}
 
 		resultMsg := fmt.Sprintf("url=%s status=%d", source.URL, result.StatusCode)
-		if logErr := s.logService.CreateLog(ctx, LogActionDataRetrieval, outcome, &resultMsg); logErr != nil && refreshErr == nil {
+		if logErr := s.logService.CreateLog(ctx, &eventID, LogActionDataRetrieval, outcome, &resultMsg); logErr != nil && refreshErr == nil {
 			refreshErr = fmt.Errorf("log retrieval result: %w", logErr)
 		}
 
@@ -149,10 +152,10 @@ func (s *PipelineService) Refresh(ctx context.Context) error {
 			htmlBody = resolved
 		} else {
 			failMsg := fmt.Sprintf("resolve zip links: %v", err)
-			_ = s.logService.CreateLog(ctx, LogActionZipProcess, LogOutcomeFail, &failMsg)
+			_ = s.logService.CreateLog(ctx, &eventID, LogActionZipProcess, LogOutcomeFail, &failMsg)
 		}
 
-		openAiResult, err := s.openAiService.ExtractZipLink(ctx, htmlBody)
+		openAiResult, err := s.openAiService.ExtractZipLink(ctx, htmlBody, &eventID)
 		if err != nil {
 			if refreshErr == nil {
 				refreshErr = fmt.Errorf("openai extract: %w", err)
@@ -163,7 +166,7 @@ func (s *PipelineService) Refresh(ctx context.Context) error {
 			refreshErr = fmt.Errorf("openai extract returned error: %s", openAiResult.Error)
 		}
 
-		zipResult, err := s.zipService.Download(ctx, openAiResult.Link, source.URL)
+		zipResult, err := s.zipService.Download(ctx, openAiResult.Link, source.URL, &eventID)
 		if err != nil {
 			if refreshErr == nil {
 				refreshErr = fmt.Errorf("zip download: %w", err)
@@ -174,25 +177,24 @@ func (s *PipelineService) Refresh(ctx context.Context) error {
 		payloads, err := s.xlsxService.ExtractAuctionPayloads(ctx, zipResult.Bytes)
 		if err != nil {
 			failMsg := fmt.Sprintf("extract xlsx: %v", err)
-			_ = s.logService.CreateLog(ctx, LogActionZipProcess, LogOutcomeFail, &failMsg)
+			_ = s.logService.CreateLog(ctx, &eventID, LogActionZipProcess, LogOutcomeFail, &failMsg)
 			if refreshErr == nil {
 				refreshErr = fmt.Errorf("extract xlsx: %w", err)
 			}
 			continue
 		}
 		successMsg := fmt.Sprintf("extracted xlsx files=%d url=%s", len(payloads), zipResult.URL)
-		_ = s.logService.CreateLog(ctx, LogActionZipProcess, LogOutcomeSuccess, &successMsg)
+		_ = s.logService.CreateLog(ctx, &eventID, LogActionZipProcess, LogOutcomeSuccess, &successMsg)
 
 		for _, payload := range payloads {
-			parsed, err := s.csvService.ParseAuctionResults(ctx, payload)
-			if err != nil {
-				if refreshErr == nil {
-					refreshErr = fmt.Errorf("openai csv parse: %w", err)
-				}
+			parsed, err := s.csvService.ParseAuctionResults(ctx, payload, &eventID)
+			if err != nil && refreshErr == nil {
+				refreshErr = fmt.Errorf("openai csv parse: %w", err)
+			}
+			if len(parsed.Rows) == 0 {
 				continue
 			}
-
-			if _, err := s.dataService.StoreAuctionResults(ctx, parsed); err != nil {
+			if _, err := s.dataService.StoreAuctionResults(ctx, parsed, &eventID); err != nil {
 				if refreshErr == nil {
 					refreshErr = fmt.Errorf("store auction results: %w", err)
 				}

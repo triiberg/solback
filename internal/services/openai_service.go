@@ -55,7 +55,7 @@ func NewOpenAiService(apiKey string, logService LogWriter, client *http.Client, 
 	}, nil
 }
 
-func (s *OpenAiService) ExtractZipLink(ctx context.Context, html string) (OpenAiResult, error) {
+func (s *OpenAiService) ExtractZipLink(ctx context.Context, html string, eventID *string) (OpenAiResult, error) {
 	if s == nil {
 		return OpenAiResult{}, errors.New("openai service is nil")
 	}
@@ -71,19 +71,19 @@ func (s *OpenAiService) ExtractZipLink(ctx context.Context, html string) (OpenAi
 
 	if strings.TrimSpace(html) == "" {
 		result := OpenAiResult{Error: "EMPTY_HTML"}
-		s.logResult(ctx, result)
+		s.logResult(ctx, result, eventID)
 		return result, nil
 	}
 
 	tables, err := ExtractZipTables(html)
 	if err != nil {
 		msg := fmt.Sprintf("prefilter html: %v", err)
-		_ = s.logService.CreateLog(ctx, LogActionOpenAIHTMLExtract, LogOutcomeFail, &msg)
+		_ = s.logService.CreateLog(ctx, eventID, LogActionOpenAIHTMLExtract, LogOutcomeFail, &msg)
 		return OpenAiResult{}, err
 	}
 	if len(tables) == 0 {
 		result := OpenAiResult{Error: "NO_RESULTS"}
-		s.logResult(ctx, result)
+		s.logResult(ctx, result, eventID)
 		return result, nil
 	}
 
@@ -93,14 +93,14 @@ func (s *OpenAiService) ExtractZipLink(ctx context.Context, html string) (OpenAi
 		result, err := s.callOpenAI(ctx, prompt)
 		if err != nil {
 			msg := fmt.Sprintf("openai html extract attempt %d: %v", attempt, err)
-			_ = s.logService.CreateLog(ctx, LogActionOpenAIHTMLExtract, LogOutcomeFail, &msg)
+			_ = s.logService.CreateLog(ctx, eventID, LogActionOpenAIHTMLExtract, LogOutcomeFail, &msg)
 			if attempt == 3 {
 				return OpenAiResult{}, err
 			}
 			continue
 		}
 
-		s.logResult(ctx, result)
+		s.logResult(ctx, result, eventID)
 		return result, nil
 	}
 
@@ -170,7 +170,7 @@ func (s *OpenAiService) callOpenAI(ctx context.Context, prompt string) (OpenAiRe
 	return result, nil
 }
 
-func (s *OpenAiService) logResult(ctx context.Context, result OpenAiResult) {
+func (s *OpenAiService) logResult(ctx context.Context, result OpenAiResult, eventID *string) {
 	if s == nil || s.logService == nil {
 		return
 	}
@@ -181,7 +181,7 @@ func (s *OpenAiService) logResult(ctx context.Context, result OpenAiResult) {
 	}
 
 	msg := fmt.Sprintf("error=%s period=%s link=%s", result.Error, result.Period, result.Link)
-	_ = s.logService.CreateLog(ctx, LogActionOpenAIHTMLExtract, outcome, &msg)
+	_ = s.logService.CreateLog(ctx, eventID, LogActionOpenAIHTMLExtract, outcome, &msg)
 }
 
 func buildOpenAiPrompt(html string) string {

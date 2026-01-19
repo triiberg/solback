@@ -23,7 +23,7 @@ func NewLogService(db *gorm.DB) (*LogService, error) {
 	return &LogService{db: db}, nil
 }
 
-func (s *LogService) CreateLog(ctx context.Context, action string, outcome string, message *string) error {
+func (s *LogService) CreateLog(ctx context.Context, eventID *string, action string, outcome string, message *string) error {
 	if s == nil {
 		return errors.New("log service is nil")
 	}
@@ -38,6 +38,7 @@ func (s *LogService) CreateLog(ctx context.Context, action string, outcome strin
 	}
 
 	entry := models.Log{
+		EventID:  eventID,
 		Datetime: time.Now().UTC(),
 		Action:   action,
 		Outcome:  outcome,
@@ -50,7 +51,7 @@ func (s *LogService) CreateLog(ctx context.Context, action string, outcome strin
 	return nil
 }
 
-func (s *LogService) GetLogs(ctx context.Context, limit int) ([]models.Log, error) {
+func (s *LogService) GetLogs(ctx context.Context, limit int, eventID string) ([]models.Log, error) {
 	if s == nil {
 		return nil, errors.New("log service is nil")
 	}
@@ -61,14 +62,31 @@ func (s *LogService) GetLogs(ctx context.Context, limit int) ([]models.Log, erro
 		return nil, errors.New("limit must be positive")
 	}
 
+	query := s.db.WithContext(ctx).Order("datetime desc").Limit(limit)
+	if eventID != "" {
+		query = query.Where("event_id = ?", eventID)
+	}
+
 	var logs []models.Log
-	if err := s.db.WithContext(ctx).
-		Order("datetime desc").
-		Limit(limit).
-		Find(&logs).
-		Error; err != nil {
+	if err := query.Find(&logs).Error; err != nil {
 		return nil, fmt.Errorf("get logs: %w", err)
 	}
 
 	return logs, nil
+}
+
+func (s *LogService) TruncateLogs(ctx context.Context) (int, error) {
+	if s == nil {
+		return 0, errors.New("log service is nil")
+	}
+	if s.db == nil {
+		return 0, errors.New("db is nil")
+	}
+
+	result := s.db.WithContext(ctx).Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&models.Log{})
+	if result.Error != nil {
+		return 0, fmt.Errorf("truncate logs: %w", result.Error)
+	}
+
+	return int(result.RowsAffected), nil
 }

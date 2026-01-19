@@ -37,6 +37,21 @@
 - create a top-level PipelineService (or IngestionService) that calls each step service in sequence. (the steps will be: 1. get the html [implemented in HtmlService], 2. process the HTML with the help of OpenAI [chapter "3. Component of processing the Data using OpenAI API."] 3. retrieve the zip files [not implemented yet] 4. open the zips into the buffer [not implemented yet] 5. process the buffer with the help of OpenAI into JSON [not implemented yet] 6. put the JSON into the DB [not implemented yet]) **Status:** DONE_AND_LOCKED
 - keep each step as its own service (e.g., HtmlService, OpenAIExtractService, ZipService, CsvParseService, DataService) for testability. **Status:** DONE_AND_LOCKED
 
+- logs model must have event identifier that is given by PipelineService when starting the process. This will allow me to filter out log events per session. **Status:** DONE_AND_LOCKED
+- PipelineService when triggered by cron or refresh endpoint, generates new eventId and assignes it to log records that are created in this session of refreshing the data. **Status:** DONE_AND_LOCKED
+- logs endpoint must allow filter eventId. **Status:** IN_PROGRESS
+- when creating log record of OPENAPI_CALL_CVS_PARSE, attache the filename that is currently parsed. **Status:** DONE_AND_LOCKED
+- log service must have truncate logs function. **Status:** DONE_AND_LOCKED
+- log controller must have DELETE /logs endpoint that calls truncate logs function from logs service. **Status:** DONE_AND_LOCKED
+- refresh endpoint must be asynchronus: just run it as go routine. **Status:** DONE_AND_LOCKED
+
+- all data aquired when OPENAPI_CALL_CSV_PARSE is SUCCESS must be in the JSON that will be parsed into model that will be stored in the database. Currently if any of the OpenAPI calls that parse CSV fails, nothing is available in database data table - but must be. **Status:** DONE_AND_LOCKED
+
+- no reason to pass the same CSV to OpenAI if it failed: the input is the same and fail next time. One attempt only.   **Status:** DONE_AND_LOCKED
+
+- add function to the CSV service, that extracts year and month from filename.  **Status:** IN_PROGRESS
+- change the schema sent to OpenAI when parsing the CSV: do not require year and month properties to be added by OpenAI. Add year and month when the payload comes back.  **Status:** IN_PROGRESS
+
 ## Components 
 
 ### 0. Go structure with load conf. **Status:** DONE_AND_LOCKED
@@ -193,7 +208,7 @@ HTML:
 - the app is runnable/compilable
 
 
-### 4. Component of retrieving retrieving the Zip and processing the data. **Status:** IN_PROGRESS
+### 4. Component of retrieving retrieving the Zip and processing the data. **Status:** DONE_AND_LOCKED
 
 #### 1. Objectives
 - this step must be called by PipelineService after the link is retrieved by previous step
@@ -214,7 +229,7 @@ HTML:
 3. The event of download is observable in the logs table
 4. Tests coverage over the code has been created in this iteration
 
-### 5. Processing the Zip file locally and with the help of OpenAI API. **Status:** IN_PROGRESS
+### 5. Processing the Zip file locally and with the help of OpenAI API. **Status:** DONE_AND_LOCKED
 
 #### 1. Objectives
 - this current zip processing step must be called by PipelineService after the ZIP is successfully downloaded and loaded into the buffer 
@@ -308,17 +323,7 @@ Schema:
             "weighted_avg_price_eur_per_mwh": {
               "type": "number"
             }
-          },
-          "required": [
-            "year",
-            "month",
-            "region",
-            "technology",
-            "total_volume_auctioned",
-            "total_volume_sold",
-            "weighted_avg_price_eur_per_mwh",
-          ],
-          "additionalProperties": false
+          }
         }
       }
     },
@@ -333,7 +338,7 @@ Schema:
 3. The fact of success or failure is logged into logs table
 4. Tests coverage over the code has been created in this iteration
 
-### 6. Component of storing the data. **Status:** IN_PROGRESS
+### 6. Component of storing the data. **Status:** DONE_AND_LOCKED
 
 #### 1. Objectives
 - Data model to hold the data processed by OpenAI must be created
@@ -358,7 +363,24 @@ Schema:
 - make sure the PipelineService could run through the flow from the point it starts with the source URLS until the end where the actual data is saved into the database.
 
 
-### 7. Component of GET /data controller. **Status:** WAITING
+### 7. Component of GET /data controller and DELETE /data controller. **Status:** DONE_AND_LOCKED
+
+#### 1. Objectives
+- see Guarantee of Origin data, allow frontend to consume it
+- delete data (in case of fresh start)
+
+#### 2. Coding
+- add getData function with filters to DataService: period filter, technology filter. If filter not applied all periods and all technologies
+- add deleteData function to remove all data, write an entry into the log so I can check if delete is triggered
+- data controller must have 2 endpoints: GET /data (with period and tech filter), DELETE /data that just calls deleteData
+
+#### 3. Expected Result
+1. Controllers are added
+2. DataService has methods that are called from controller
+3. Both controllers and service is covered with tests
+4. Everthing is able to run and I can put it into docker and run there
+
+
 
 # Technical details and Architecture
 - High-level overview: Project is built up out of components. We build one by one, test and verify then LOCK
@@ -370,11 +392,6 @@ Schema:
 OpenAI is used ONLY for:
 - Extracting a ZIP download URL from raw HTML
 - Parsing CSV rows into a predefined schema
-
-Constraints:
-- Deterministic output required
-- Schema validation required on response
-- Failure logged + retry max 3 times
 
 ## Interfaces
 
@@ -389,7 +406,7 @@ Constraints:
 1. sources: ID as GUID, URL as text, comment as text
 2. origin types: ID as GUID, origin as text (Onshore Wind/Hydropower/Solar/Thermal)
 3. data: ID as GUID, region as text, country as text, auction volume as decimal.Decimal, sold volume as decimal.Decimal, weighted price as decimal.Decimal  
-4. logs: ID as GUID, datetime, action as text (like DATA_RETRIVAL, ZIP_DOWNLOAD, OPENAPI_CALL_HTML_EXTRACT, OPENAPI_CALL_CSV_PARSE), outcome as text (SUCCESS, FAIL), message as text (if error, store the error data)
+4. logs: ID as GUID, eventId as GUID, datetime, action as text (like DATA_RETRIVAL, ZIP_DOWNLOAD, OPENAPI_CALL_HTML_EXTRACT, OPENAPI_CALL_CSV_PARSE), outcome as text (SUCCESS, FAIL), message as text (if error, store the error data)
 
 ### Storage and migrations
 - tables must be created if not exists, use internal/repo for function that migrates

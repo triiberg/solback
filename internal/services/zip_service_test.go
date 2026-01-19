@@ -33,7 +33,7 @@ func TestZipServiceDownloadRelativeLink(t *testing.T) {
 		t.Fatalf("NewZipService: %v", err)
 	}
 
-	result, err := service.Download(context.Background(), "/file.zip", server.URL+"/page")
+	result, err := service.Download(context.Background(), "/file.zip", server.URL+"/page", nil)
 	if err != nil {
 		t.Fatalf("Download: %v", err)
 	}
@@ -61,7 +61,7 @@ func TestZipServiceRejectsNonZip(t *testing.T) {
 		t.Fatalf("NewZipService: %v", err)
 	}
 
-	if _, err := service.Download(context.Background(), "https://example.com/file.pdf", ""); err == nil {
+	if _, err := service.Download(context.Background(), "https://example.com/file.pdf", "", nil); err == nil {
 		t.Fatalf("expected error for non-zip link")
 	}
 	if len(logWriter.entries) == 0 {

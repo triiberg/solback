@@ -101,6 +101,11 @@ func main() {
 		log.Fatalf("create logs controller: %v", err)
 	}
 
+	dataController, err := controllers.NewDataController(dataService)
+	if err != nil {
+		log.Fatalf("create data controller: %v", err)
+	}
+
 	refreshController, err := controllers.NewRefreshController(pipelineService)
 	if err != nil {
 		log.Fatalf("create refresh controller: %v", err)
@@ -117,6 +122,9 @@ func main() {
 	}
 	if err := logsController.RegisterRoutes(router); err != nil {
 		log.Fatalf("register logs routes: %v", err)
+	}
+	if err := dataController.RegisterRoutes(router); err != nil {
+		log.Fatalf("register data routes: %v", err)
 	}
 	if err := refreshController.RegisterRoutes(router); err != nil {
 		log.Fatalf("register refresh routes: %v", err)

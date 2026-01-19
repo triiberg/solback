@@ -11,7 +11,7 @@ type SourceProvider interface {
 }
 
 type LogWriter interface {
-	CreateLog(ctx context.Context, action string, outcome string, message *string) error
+	CreateLog(ctx context.Context, eventID *string, action string, outcome string, message *string) error
 }
 
 type HtmlFetcher interface {
@@ -19,11 +19,11 @@ type HtmlFetcher interface {
 }
 
 type OpenAiExtractor interface {
-	ExtractZipLink(ctx context.Context, html string) (OpenAiResult, error)
+	ExtractZipLink(ctx context.Context, html string, eventID *string) (OpenAiResult, error)
 }
 
 type ZipDownloader interface {
-	Download(ctx context.Context, link string, sourceURL string) (ZipResult, error)
+	Download(ctx context.Context, link string, sourceURL string, eventID *string) (ZipResult, error)
 }
 
 type ZipProcessor interface {
@@ -31,9 +31,9 @@ type ZipProcessor interface {
 }
 
 type AuctionParser interface {
-	ParseAuctionResults(ctx context.Context, payload AuctionPayload) (AuctionResults, error)
+	ParseAuctionResults(ctx context.Context, payload AuctionPayload, eventID *string) (AuctionResults, error)
 }
 
 type DataStorer interface {
-	StoreAuctionResults(ctx context.Context, results AuctionResults) (int, error)
+	StoreAuctionResults(ctx context.Context, results AuctionResults, eventID *string) (int, error)
 }
