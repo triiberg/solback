@@ -11,10 +11,23 @@ type PipelineService struct {
 	sourceService SourceProvider
 	htmlService   HtmlFetcher
 	openAiService OpenAiExtractor
+	zipService    ZipDownloader
+	xlsxService   ZipProcessor
+	csvService    AuctionParser
+	dataService   DataStorer
 	logService    LogWriter
 }
 
-func NewPipelineService(sourceService SourceProvider, htmlService HtmlFetcher, openAiService OpenAiExtractor, logService LogWriter) (*PipelineService, error) {
+func NewPipelineService(
+	sourceService SourceProvider,
+	htmlService HtmlFetcher,
+	openAiService OpenAiExtractor,
+	zipService ZipDownloader,
+	xlsxService ZipProcessor,
+	csvService AuctionParser,
+	dataService DataStorer,
+	logService LogWriter,
+) (*PipelineService, error) {
 	if sourceService == nil {
 		return nil, errors.New("source service is nil")
 	}
@@ -24,6 +37,18 @@ func NewPipelineService(sourceService SourceProvider, htmlService HtmlFetcher, o
 	if openAiService == nil {
 		return nil, errors.New("openai service is nil")
 	}
+	if zipService == nil {
+		return nil, errors.New("zip service is nil")
+	}
+	if xlsxService == nil {
+		return nil, errors.New("xlsx service is nil")
+	}
+	if csvService == nil {
+		return nil, errors.New("csv service is nil")
+	}
+	if dataService == nil {
+		return nil, errors.New("data service is nil")
+	}
 	if logService == nil {
 		return nil, errors.New("log service is nil")
 	}
@@ -32,6 +57,10 @@ func NewPipelineService(sourceService SourceProvider, htmlService HtmlFetcher, o
 		sourceService: sourceService,
 		htmlService:   htmlService,
 		openAiService: openAiService,
+		zipService:    zipService,
+		xlsxService:   xlsxService,
+		csvService:    csvService,
+		dataService:   dataService,
 		logService:    logService,
 	}, nil
 }
@@ -48,6 +77,18 @@ func (s *PipelineService) Refresh(ctx context.Context) error {
 	}
 	if s.openAiService == nil {
 		return errors.New("openai service is nil")
+	}
+	if s.zipService == nil {
+		return errors.New("zip service is nil")
+	}
+	if s.xlsxService == nil {
+		return errors.New("xlsx service is nil")
+	}
+	if s.csvService == nil {
+		return errors.New("csv service is nil")
+	}
+	if s.dataService == nil {
+		return errors.New("data service is nil")
 	}
 	if s.logService == nil {
 		return errors.New("log service is nil")
@@ -103,7 +144,15 @@ func (s *PipelineService) Refresh(ctx context.Context) error {
 			continue
 		}
 
-		openAiResult, err := s.openAiService.ExtractZipLink(ctx, result.Body)
+		htmlBody := result.Body
+		if resolved, err := ResolveZipLinks(source.URL, result.Body); err == nil {
+			htmlBody = resolved
+		} else {
+			failMsg := fmt.Sprintf("resolve zip links: %v", err)
+			_ = s.logService.CreateLog(ctx, LogActionZipProcess, LogOutcomeFail, &failMsg)
+		}
+
+		openAiResult, err := s.openAiService.ExtractZipLink(ctx, htmlBody)
 		if err != nil {
 			if refreshErr == nil {
 				refreshErr = fmt.Errorf("openai extract: %w", err)
@@ -112,6 +161,42 @@ func (s *PipelineService) Refresh(ctx context.Context) error {
 		}
 		if openAiResult.Error != "" && refreshErr == nil {
 			refreshErr = fmt.Errorf("openai extract returned error: %s", openAiResult.Error)
+		}
+
+		zipResult, err := s.zipService.Download(ctx, openAiResult.Link, source.URL)
+		if err != nil {
+			if refreshErr == nil {
+				refreshErr = fmt.Errorf("zip download: %w", err)
+			}
+			continue
+		}
+
+		payloads, err := s.xlsxService.ExtractAuctionPayloads(ctx, zipResult.Bytes)
+		if err != nil {
+			failMsg := fmt.Sprintf("extract xlsx: %v", err)
+			_ = s.logService.CreateLog(ctx, LogActionZipProcess, LogOutcomeFail, &failMsg)
+			if refreshErr == nil {
+				refreshErr = fmt.Errorf("extract xlsx: %w", err)
+			}
+			continue
+		}
+		successMsg := fmt.Sprintf("extracted xlsx files=%d url=%s", len(payloads), zipResult.URL)
+		_ = s.logService.CreateLog(ctx, LogActionZipProcess, LogOutcomeSuccess, &successMsg)
+
+		for _, payload := range payloads {
+			parsed, err := s.csvService.ParseAuctionResults(ctx, payload)
+			if err != nil {
+				if refreshErr == nil {
+					refreshErr = fmt.Errorf("openai csv parse: %w", err)
+				}
+				continue
+			}
+
+			if _, err := s.dataService.StoreAuctionResults(ctx, parsed); err != nil {
+				if refreshErr == nil {
+					refreshErr = fmt.Errorf("store auction results: %w", err)
+				}
+			}
 		}
 	}
 

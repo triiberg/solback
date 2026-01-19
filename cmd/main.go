@@ -57,7 +57,36 @@ func main() {
 		log.Fatalf("create openai service: %v", err)
 	}
 
-	pipelineService, err := services.NewPipelineService(sourceService, htmlService, openAiService, logService)
+	zipService, err := services.NewZipService(logService, nil)
+	if err != nil {
+		log.Fatalf("create zip service: %v", err)
+	}
+
+	xlsxService, err := services.NewXlsxService()
+	if err != nil {
+		log.Fatalf("create xlsx service: %v", err)
+	}
+
+	csvService, err := services.NewOpenAiCsvService(cfg.OpenAIAPIKey, logService, nil, "")
+	if err != nil {
+		log.Fatalf("create openai csv service: %v", err)
+	}
+
+	dataService, err := services.NewDataService(db, logService)
+	if err != nil {
+		log.Fatalf("create data service: %v", err)
+	}
+
+	pipelineService, err := services.NewPipelineService(
+		sourceService,
+		htmlService,
+		openAiService,
+		zipService,
+		xlsxService,
+		csvService,
+		dataService,
+		logService,
+	)
 	if err != nil {
 		log.Fatalf("create pipeline service: %v", err)
 	}

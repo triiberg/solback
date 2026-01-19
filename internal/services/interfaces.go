@@ -21,3 +21,19 @@ type HtmlFetcher interface {
 type OpenAiExtractor interface {
 	ExtractZipLink(ctx context.Context, html string) (OpenAiResult, error)
 }
+
+type ZipDownloader interface {
+	Download(ctx context.Context, link string, sourceURL string) (ZipResult, error)
+}
+
+type ZipProcessor interface {
+	ExtractAuctionPayloads(ctx context.Context, zipBytes []byte) ([]AuctionPayload, error)
+}
+
+type AuctionParser interface {
+	ParseAuctionResults(ctx context.Context, payload AuctionPayload) (AuctionResults, error)
+}
+
+type DataStorer interface {
+	StoreAuctionResults(ctx context.Context, results AuctionResults) (int, error)
+}

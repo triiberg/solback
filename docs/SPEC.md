@@ -34,12 +34,12 @@
 - make sure config.json is available in Docker container **Status:** DONE_AND_LOCKED
 - repo.go must check if sources table is empty add url and comment from config.json **Status:** DONE_AND_LOCKED
 
-- create a top-level PipelineService (or IngestionService) that calls each step service in sequence. (the steps will be: 1. get the html [implemented in HtmlService], 2. process the HTML with the help of OpenAI [chapter "3. Component of processing the Data using OpenAI API."] 3. retrieve the zip files [not implemented yet] 4. open the zips into the buffer [not implemented yet] 5. process the buffer with the help of OpenAI into JSON [not implemented yet] 6. put the JSON into the DB [not implemented yet]) **Status:** IN_PROGRESS
-- keep each step as its own service (e.g., HtmlService, OpenAIExtractService, ZipService, CsvParseService, DataService) for testability. **Status:** IN_PROGRESS
+- create a top-level PipelineService (or IngestionService) that calls each step service in sequence. (the steps will be: 1. get the html [implemented in HtmlService], 2. process the HTML with the help of OpenAI [chapter "3. Component of processing the Data using OpenAI API."] 3. retrieve the zip files [not implemented yet] 4. open the zips into the buffer [not implemented yet] 5. process the buffer with the help of OpenAI into JSON [not implemented yet] 6. put the JSON into the DB [not implemented yet]) **Status:** DONE_AND_LOCKED
+- keep each step as its own service (e.g., HtmlService, OpenAIExtractService, ZipService, CsvParseService, DataService) for testability. **Status:** DONE_AND_LOCKED
 
 ## Components 
 
-### 0. Go structure with load conf. **Status:** IN_PROGRESS
+### 0. Go structure with load conf. **Status:** DONE_AND_LOCKED
 
 ####  1. Dependencies:
 - Cron (create on example task that runs once in hour, prints out "hello")
@@ -106,7 +106,7 @@ Requirements:
 #### 4. Expected result:
 - can run `go run cmd/main.go`
 
-### 2. Component of retrieving first HTML. **Status:** IN_PROGRESS
+### 2. Component of retrieving first HTML. **Status:** DONE_AND_LOCKED
 
 #### 1. Objectives
 - get URLs from sources table
@@ -136,7 +136,7 @@ Requirements:
 - all tests passed
 - its bossible to rebuild Docker image and run it
 
-### 3. Component of processing the Data using OpenAI API.  **Status:** IN_PROGRESS
+### 3. Component of processing the Data using OpenAI API.  **Status:** DONE_AND_LOCKED
 
 #### 1. Objectives
 - the data from HtmlService download will be passed to OpenAiService (the )
@@ -167,7 +167,7 @@ Non-negotiable rules:
 Instructions:
 Find link to the most relevant ZIP file. Known criterias 
 1. The description must say GO or Guarantee of Origin, the year number(s) and states that these are the "results"
-2. The link must start with "https://" and end with ".zip"
+2. The link must end with ".zip"
 3. Return result in form described in rules section
 
 Notes:
@@ -193,11 +193,172 @@ HTML:
 - the app is runnable/compilable
 
 
-### 4. Component of retrieving retrieving the Zip and processing the data. **Status:** WAITING
+### 4. Component of retrieving retrieving the Zip and processing the data. **Status:** IN_PROGRESS
 
-### 5. Component of storing the data. **Status:** WAITING
+#### 1. Objectives
+- this step must be called by PipelineService after the link is retrieved by previous step
+- pipeline service invokes functions from ZipService with data from pervious step (JSON of a link to a Zip file and source URL)
+- Zip file download
 
-### 6. Component of GET /data controller. **Status:** WAITING
+#### 2. Coding
+- create ZipService similar to other services
+- create a function that takes in the link and source and validates the link
+- if needed using the source full URL must be created (http......zip)
+- creates HTTP call and retrieves the bytes of the ZIP file
+- logs success / error
+- passes the buffer to the next step (described as 5. Processing the Zip file locally and with help of OpenAI API.)
+
+#### 3. Expected results
+1. Zip file link is validated
+2. Zip is downloaded into the buffer
+3. The event of download is observable in the logs table
+4. Tests coverage over the code has been created in this iteration
+
+### 5. Processing the Zip file locally and with the help of OpenAI API. **Status:** IN_PROGRESS
+
+#### 1. Objectives
+- this current zip processing step must be called by PipelineService after the ZIP is successfully downloaded and loaded into the buffer 
+- the byte buffer of the zip file will be processed into the junks possible to send to OpenAI API
+- precheck: validate OpenAI model token budget and max rows per request using synthetic XLSX-like payload (no real data, no ingestion) - estimate if its possible to get results with planned data, write into logs
+- processed data is passed to the OpenAI api
+- returned JSON must be validated
+- all buffers and memory that were temporary allocated to work with bytes of the ZIP and excel files are freed
+- the JSON that OpenAI returned will be passed to the next step (described in 6. Component of storing the data.)
+
+#### 2. Example data
+1. ./docs/ folder has example zip file 20251119_GO_2024_2025_GLOBAL_Results.zip 
+2. ./docs/ folder has example xlsx files that represent the data in the zip file: 20250520_February_2025_77_GLOBAL_Results_detailedresults.xlsx and 20251119_August_2025_83_GLOBAL_Results_detailedresults.xlsx
+
+#### 3. Coding
+1. Unpack ZIP from memory
+   - Use `archive/zip.NewReader(bytes.NewReader(zipBytes), int64(len(zipBytes)))`.
+   - Do not write archive contents to disk.
+2. Select XLSX entries
+   - Iterate `zipReader.File`.
+   - Skip directories, `__MACOSX`, and non-`.xlsx` files.
+3. Read + parse XLSX
+   - Read each XLSX entry into memory.
+   - Open workbook from an `io.Reader` (e.g., excelize `OpenReader`).
+   - Select target sheet (default: first sheet; fallback: scan sheets to find a title cell containing "Aggregated Auction Results").
+   - Extract rows as `[][]string`.
+4. Deterministically extract structure
+   - Identify metadata rows (e.g., "Number of Participants to the Auction") and parse the integer value.
+   - Identify the main table header row by detecting presence of both "Region" and "Technology" (FR/EN variants).
+   - Data rows start after the header row; stop at the first block of empty/invalid rows.
+5. Prepare OpenAI input payload (no raw XLSX)
+   - Build `{source_file, participants, headers, rows}` from extracted sheet rows.
+6. Call OpenAI with Structured Outputs (strict JSON schema)
+   - Enforce schema compliance; reject invalid output.
+
+#### 4. OpenAI structured extraction contract
+
+- The OpenAI request MUST include a strict JSON Schema (Structured Outputs).
+- Free-form JSON responses are not allowed.
+- `additionalProperties` is set to `false` to prevent hallucinated fields.
+- The model is responsible only for:
+  - Mapping headers to canonical field names
+  - Converting decimal commas to decimal points
+  - Converting "-" or empty cells to null
+  - Coercing numeric values
+- The backend MUST reject any response that:
+  - Fails JSON decoding
+  - Violates the schema   
+
+Schema:
+```
+{
+  "name": "auction_results",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "source_file": {
+        "type": "string",
+        "description": "Original XLSX file name",
+        "year": "part of the filename",
+        "month": "part of the filename"
+      },
+      "participants": {
+        "type": "integer",
+        "description": "Number of participants in the auction"
+      },
+      "rows": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "year": {
+              "type": "number"
+            },
+            "month": {
+              "type": "number"
+            },
+            "region": {
+              "type": "string"
+            },
+            "technology": {
+              "type": "string"
+            },
+            "total_volume_auctioned": {
+              "type": "number"
+            },
+            "total_volume_sold": {
+              "type": "number"
+            },
+            "weighted_avg_price_eur_per_mwh": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "year",
+            "month",
+            "region",
+            "technology",
+            "total_volume_auctioned",
+            "total_volume_sold",
+            "weighted_avg_price_eur_per_mwh",
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["rows"],
+    "additionalProperties": false
+  }
+}
+```
+#### 3. Expected results
+1. Unpacked zip is extracted and passed to OpenAI
+2. The result of OpenAI is retrieved 
+3. The fact of success or failure is logged into logs table
+4. Tests coverage over the code has been created in this iteration
+
+### 6. Component of storing the data. **Status:** IN_PROGRESS
+
+#### 1. Objectives
+- Data model to hold the data processed by OpenAI must be created
+- Migration script for repo creates the DB table if does not exist
+- New DataService must be created with functions to store and retrieve data in the database
+- OpenAI results must be parsed into the model
+- Results must be stored in the database
+- logged how many rows added
+
+#### 2. Coding
+- create model of data
+- create migration into repo.go
+- create DataService similar to other services
+- create functions to be called by PipeLine service with the payload from previous steps
+- log success or fail
+
+#### 3. Expected results
+- structures to deal with the data has been created
+- PipelineService calls the storing functions and saves data to the database
+- events are logged
+- test were created about the data storing
+- make sure the PipelineService could run through the flow from the point it starts with the source URLS until the end where the actual data is saved into the database.
+
+
+### 7. Component of GET /data controller. **Status:** WAITING
 
 # Technical details and Architecture
 - High-level overview: Project is built up out of components. We build one by one, test and verify then LOCK
@@ -218,7 +379,7 @@ Constraints:
 ## Interfaces
 
 ### External dependencies
-- OpenAI API: 
+- OpenAI API
 
 ## Data
 - Postgres SQL

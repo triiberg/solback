@@ -48,6 +48,55 @@ func (s stubOpenAiExtractor) ExtractZipLink(ctx context.Context, html string) (O
 	return s.result, nil
 }
 
+type stubZipDownloader struct {
+	result ZipResult
+	err    error
+}
+
+func (s stubZipDownloader) Download(ctx context.Context, link string, sourceURL string) (ZipResult, error) {
+	if s.err != nil {
+		return ZipResult{}, s.err
+	}
+	return s.result, nil
+}
+
+type stubZipProcessor struct {
+	payloads []AuctionPayload
+	err      error
+}
+
+func (s stubZipProcessor) ExtractAuctionPayloads(ctx context.Context, zipBytes []byte) ([]AuctionPayload, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	return s.payloads, nil
+}
+
+type stubAuctionParser struct {
+	result AuctionResults
+	err    error
+}
+
+func (s stubAuctionParser) ParseAuctionResults(ctx context.Context, payload AuctionPayload) (AuctionResults, error) {
+	if s.err != nil {
+		return AuctionResults{}, s.err
+	}
+	return s.result, nil
+}
+
+type stubDataStorer struct {
+	count int
+	err   error
+}
+
+func (s *stubDataStorer) StoreAuctionResults(ctx context.Context, results AuctionResults) (int, error) {
+	if s.err != nil {
+		return 0, s.err
+	}
+	s.count += len(results.Rows)
+	return len(results.Rows), nil
+}
+
 func TestPipelineServiceRefresh(t *testing.T) {
 	sources := []models.Source{
 		{URL: "https://example.com/ok"},
@@ -61,10 +110,15 @@ func TestPipelineServiceRefresh(t *testing.T) {
 	}
 
 	logWriter := &stubLogWriter{}
+	dataStorer := &stubDataStorer{}
 	service, err := NewPipelineService(
 		stubSourceService{sources: sources},
 		htmlFetcher,
-		stubOpenAiExtractor{result: OpenAiResult{Error: "NO_RESULTS"}},
+		stubOpenAiExtractor{result: OpenAiResult{Link: "https://example.com/file.zip"}},
+		stubZipDownloader{result: ZipResult{URL: "https://example.com/file.zip", StatusCode: http.StatusOK, Bytes: []byte("zip")}},
+		stubZipProcessor{payloads: []AuctionPayload{{SourceFile: "file.xlsx", Participants: 1, Headers: []string{"Region", "Technology"}, Rows: [][]string{{"Region", "Tech"}}}}},
+		stubAuctionParser{result: AuctionResults{SourceFile: "file.xlsx", Participants: 1, Rows: []AuctionRow{{Year: 2025, Month: 8, Region: "Region", Technology: "Tech", TotalVolumeAuctioned: 1, TotalVolumeSold: 1, WeightedAvgPriceEurPerMwh: 1}}}},
+		dataStorer,
 		logWriter,
 	)
 	if err != nil {
@@ -75,17 +129,28 @@ func TestPipelineServiceRefresh(t *testing.T) {
 		t.Fatalf("Refresh: expected error")
 	}
 
-	if len(logWriter.entries) != 3 {
-		t.Fatalf("log entries = %d, want 3", len(logWriter.entries))
+	if len(logWriter.entries) < 3 {
+		t.Fatalf("log entries = %d, want at least 3", len(logWriter.entries))
 	}
 	if logWriter.entries[0].action != LogActionDataRetrieval {
 		t.Fatalf("log action = %q, want %q", logWriter.entries[0].action, LogActionDataRetrieval)
 	}
+	if dataStorer.count == 0 {
+		t.Fatalf("expected data rows to be stored")
+	}
 	if logWriter.entries[1].outcome != LogOutcomeSuccess {
 		t.Fatalf("first fetch outcome = %q, want %q", logWriter.entries[1].outcome, LogOutcomeSuccess)
 	}
-	if logWriter.entries[2].outcome != LogOutcomeFail {
-		t.Fatalf("second fetch outcome = %q, want %q", logWriter.entries[2].outcome, LogOutcomeFail)
+
+	var retrievalFail bool
+	for _, entry := range logWriter.entries {
+		if entry.action == LogActionDataRetrieval && entry.outcome == LogOutcomeFail {
+			retrievalFail = true
+			break
+		}
+	}
+	if !retrievalFail {
+		t.Fatalf("expected a failed data retrieval log entry")
 	}
 }
 
@@ -95,6 +160,10 @@ func TestPipelineServiceRefreshSourceError(t *testing.T) {
 		stubSourceService{err: errors.New("boom")},
 		stubHtmlFetcher{},
 		stubOpenAiExtractor{},
+		stubZipDownloader{},
+		stubZipProcessor{},
+		stubAuctionParser{},
+		&stubDataStorer{},
 		logWriter,
 	)
 	if err != nil {
