@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"log"
+	"net/http"
 	"os"
+	"strings"
 
 	"solback/cmd/controllers"
 	"solback/internal/config"
@@ -120,6 +122,7 @@ func main() {
 	router := gin.New()
 	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
+	router.Use(corsMiddleware(allowedOrigins()))
 
 	if err := controllers.RegisterHealthRoutes(router); err != nil {
 		log.Fatalf("register health routes: %v", err)
@@ -170,4 +173,54 @@ func startCron(service pipelineRefresher) error {
 
 	scheduler.Start()
 	return nil
+}
+
+func allowedOrigins() map[string]struct{} {
+	originEnv := strings.TrimSpace(os.Getenv("CORS_ALLOWED_ORIGINS"))
+	if originEnv == "" {
+		return map[string]struct{}{
+			"http://localhost:3000":  {},
+			"https://sol.trf.is":     {},
+			"https://sol-api.trf.is": {},
+		}
+	}
+
+	allowed := map[string]struct{}{}
+	for _, part := range strings.Split(originEnv, ",") {
+		trimmed := strings.TrimSpace(part)
+		if trimmed == "" {
+			continue
+		}
+		allowed[trimmed] = struct{}{}
+	}
+
+	return allowed
+}
+
+func corsMiddleware(allowed map[string]struct{}) gin.HandlerFunc {
+	if allowed == nil {
+		allowed = map[string]struct{}{}
+	}
+
+	return func(ctx *gin.Context) {
+		origin := ctx.GetHeader("Origin")
+		_, ok := allowed[origin]
+		if origin != "" && ok {
+			ctx.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+			ctx.Writer.Header().Set("Vary", "Origin")
+			ctx.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+			ctx.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		}
+
+		if ctx.Request.Method == http.MethodOptions {
+			if origin != "" && !ok {
+				ctx.AbortWithStatus(http.StatusForbidden)
+				return
+			}
+			ctx.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+
+		ctx.Next()
+	}
 }
