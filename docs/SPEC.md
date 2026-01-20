@@ -52,6 +52,20 @@
 - add function to the CSV service, that extracts year and month from filename.  **Status:** DONE_AND_LOCKED
 - change the schema sent to OpenAI when parsing the CSV: do not require year and month properties to be added by OpenAI. Add year and month when the payload comes back.  **Status:** DONE_AND_LOCKED
 
+- add functionality / SQL grouping to DataService's GetData. This function must be able to group data by period of year or year and month (means it returns results by years or by year and month (but not all rows of the year and month)) - sum(TotalVolumeAuctioned), sum(TotalVolumeSold), avg(WeightedAvgPriceEurPerMwh). If sum_tech=true then summarize the volumes and get avarage of price.   **Status:** IN_PROGRESS
+- add GET /data endpoints filters: group_period=year|month & sum_tech=true (default false) **Status:** IN_PROGRESS
+
+- create a /index.html page that is using XHR request calling /data endpoint. Draws HTML of the data of year, month, tech, volumes and avarage price. The page must have possibility to specify period start, period end, group by and sum tech options. Do not use any fancy libraries - just xhr request, and createElements. This page is intended to check if the numbers of the /data endpoint are correct. **Status:** IN_PROGRESS
+
+- clarification about the grouping: **Status:** IN_PROGRESS
+0. year filter works nicely - that is considered done
+1. Not working: If the group by year is on, the result contains every year once. Like if the data countains 2024-01, 2024-02, 2025-03, 2025-05 then it returns summed and avaraged data of year 2024 and 2025 for every technology.
+2. Not working: It the group by month is on the dataset 2024-01, 2024-02, 2025-03, 2025-05 will return all these month's and all technologies in these months summed and avaraged
+3. Not working: In case the sum_tech is true, and group by year, it means get all data of 2024 is sum and avarage is found and second entry is 2025 with all totals summed and avarages avaraged
+The objective here is to see how the price has changed over the years or month. Does the technology has effect on the price or not. 
+In the next step I need to build a frontend that draws a diagrams of the price change - think of the business analysis while fixing the GetData in the Data Service.
+
+  
 
 ## Components 
 

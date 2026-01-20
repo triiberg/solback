@@ -14,6 +14,7 @@ import (
 )
 
 var ErrInvalidPeriod = errors.New("invalid period")
+var ErrInvalidGroupPeriod = errors.New("invalid group period")
 
 type DataService struct {
 	db         *gorm.DB
@@ -94,12 +95,20 @@ func (s *DataService) StoreAuctionResults(ctx context.Context, results AuctionRe
 	return len(records), nil
 }
 
-func (s *DataService) GetData(ctx context.Context, period string, technology string) ([]models.AuctionResult, error) {
+func (s *DataService) GetData(ctx context.Context, period string, technology string, groupPeriod string, sumTech bool) ([]models.AuctionResult, error) {
 	if s == nil {
 		return nil, errors.New("data service is nil")
 	}
 	if s.db == nil {
 		return nil, errors.New("db is nil")
+	}
+
+	groupPeriod, err := normalizeGroupPeriod(groupPeriod)
+	if err != nil {
+		return nil, err
+	}
+	if groupPeriod == "" && sumTech {
+		groupPeriod = "month"
 	}
 
 	query := s.db.WithContext(ctx).Model(&models.AuctionResult{})
@@ -118,8 +127,34 @@ func (s *DataService) GetData(ctx context.Context, period string, technology str
 		query = query.Where("lower(technology) = lower(?)", technology)
 	}
 
+	if groupPeriod != "" {
+		selectFields := []string{"year"}
+		groupFields := []string{"year"}
+		orderFields := []string{"year"}
+		if groupPeriod == "month" {
+			selectFields = append(selectFields, "month")
+			groupFields = append(groupFields, "month")
+			orderFields = append(orderFields, "month")
+		}
+		if !sumTech {
+			selectFields = append(selectFields, "technology")
+			groupFields = append(groupFields, "technology")
+			orderFields = append(orderFields, "technology")
+		}
+
+		selectFields = append(
+			selectFields,
+			"SUM(total_volume_auctioned) AS total_volume_auctioned",
+			"SUM(total_volume_sold) AS total_volume_sold",
+			"AVG(weighted_avg_price_eur_per_mwh) AS weighted_avg_price_eur_per_mwh",
+		)
+		query = query.Select(strings.Join(selectFields, ", ")).Group(strings.Join(groupFields, ", ")).Order(strings.Join(orderFields, ", "))
+	} else {
+		query = query.Order("year, month, region, technology")
+	}
+
 	var results []models.AuctionResult
-	if err := query.Order("year, month, region, technology").Find(&results).Error; err != nil {
+	if err := query.Find(&results).Error; err != nil {
 		return nil, fmt.Errorf("get data: %w", err)
 	}
 
@@ -170,4 +205,15 @@ func parsePeriod(period string) (int, int, error) {
 	}
 
 	return start, end, nil
+}
+
+func normalizeGroupPeriod(groupPeriod string) (string, error) {
+	normalized := strings.ToLower(strings.TrimSpace(groupPeriod))
+	if normalized == "" {
+		return "", nil
+	}
+	if normalized != "year" && normalized != "month" {
+		return "", ErrInvalidGroupPeriod
+	}
+	return normalized, nil
 }

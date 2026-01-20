@@ -20,12 +20,16 @@ type stubDataService struct {
 	delErr  error
 	period  string
 	tech    string
+	group   string
+	sumTech bool
 	deleted int
 }
 
-func (s *stubDataService) GetData(ctx context.Context, period string, technology string) ([]models.AuctionResult, error) {
+func (s *stubDataService) GetData(ctx context.Context, period string, technology string, groupPeriod string, sumTech bool) ([]models.AuctionResult, error) {
 	s.period = period
 	s.tech = technology
+	s.group = groupPeriod
+	s.sumTech = sumTech
 	if s.getErr != nil {
 		return nil, s.getErr
 	}
@@ -55,7 +59,7 @@ func TestDataHandlerSuccess(t *testing.T) {
 		t.Fatalf("register data routes: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/data?period=2024-2025&tech=Tech", nil)
+	req := httptest.NewRequest(http.MethodGet, "/data?period=2024-2025&tech=Tech&group_period=year&sum_tech=true", nil)
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, req)
 
@@ -67,6 +71,12 @@ func TestDataHandlerSuccess(t *testing.T) {
 	}
 	if service.tech != "Tech" {
 		t.Fatalf("tech = %q, want %q", service.tech, "Tech")
+	}
+	if service.group != "year" {
+		t.Fatalf("group_period = %q, want %q", service.group, "year")
+	}
+	if !service.sumTech {
+		t.Fatalf("sum_tech = %v, want true", service.sumTech)
 	}
 
 	var resp []models.AuctionResult
@@ -92,6 +102,29 @@ func TestDataHandlerInvalidPeriod(t *testing.T) {
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/data?period=2024", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, recorder.Code)
+	}
+}
+
+func TestDataHandlerInvalidSumTech(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	service := &stubDataService{}
+	controller, err := NewDataController(service)
+	if err != nil {
+		t.Fatalf("NewDataController: %v", err)
+	}
+
+	router := gin.New()
+	if err := controller.RegisterRoutes(router); err != nil {
+		t.Fatalf("register data routes: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/data?sum_tech=maybe", nil)
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, req)
 

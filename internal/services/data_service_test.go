@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 
 	"solback/internal/models"
@@ -124,7 +125,7 @@ func TestDataServiceGetDataFilters(t *testing.T) {
 		t.Fatalf("NewDataService: %v", err)
 	}
 
-	results, err := service.GetData(context.Background(), "2024-2025", "Solar")
+	results, err := service.GetData(context.Background(), "2024-2025", "Solar", "", false)
 	if err != nil {
 		t.Fatalf("GetData: %v", err)
 	}
@@ -145,8 +146,241 @@ func TestDataServiceGetDataInvalidPeriod(t *testing.T) {
 		t.Fatalf("NewDataService: %v", err)
 	}
 
-	if _, err := service.GetData(context.Background(), "2024", ""); !errors.Is(err, ErrInvalidPeriod) {
+	if _, err := service.GetData(context.Background(), "2024", "", "", false); !errors.Is(err, ErrInvalidPeriod) {
 		t.Fatalf("expected ErrInvalidPeriod, got %v", err)
+	}
+}
+
+func TestDataServiceGetDataInvalidGroupPeriod(t *testing.T) {
+	db := openTestDB(t)
+	createAuctionResultsTable(t, db)
+
+	service, err := NewDataService(db, &stubLogWriter{})
+	if err != nil {
+		t.Fatalf("NewDataService: %v", err)
+	}
+
+	if _, err := service.GetData(context.Background(), "", "", "quarter", false); !errors.Is(err, ErrInvalidGroupPeriod) {
+		t.Fatalf("expected ErrInvalidGroupPeriod, got %v", err)
+	}
+}
+
+func TestDataServiceGetDataGroupedByYear(t *testing.T) {
+	db := openTestDB(t)
+	createAuctionResultsTable(t, db)
+
+	rows := []models.AuctionResult{
+		{
+			ID:                        "row-1",
+			SourceFile:                "file.xlsx",
+			Participants:              10,
+			Year:                      2024,
+			Month:                     1,
+			Region:                    "North",
+			Technology:                "Solar",
+			TotalVolumeAuctioned:      1,
+			TotalVolumeSold:           1,
+			WeightedAvgPriceEurPerMwh: 0.5,
+			NumberOfWinners:           1,
+		},
+		{
+			ID:                        "row-2",
+			SourceFile:                "file.xlsx",
+			Participants:              10,
+			Year:                      2024,
+			Month:                     2,
+			Region:                    "South",
+			Technology:                "Solar",
+			TotalVolumeAuctioned:      2,
+			TotalVolumeSold:           2,
+			WeightedAvgPriceEurPerMwh: 1.5,
+			NumberOfWinners:           1,
+		},
+		{
+			ID:                        "row-3",
+			SourceFile:                "file.xlsx",
+			Participants:              10,
+			Year:                      2024,
+			Month:                     2,
+			Region:                    "East",
+			Technology:                "Wind",
+			TotalVolumeAuctioned:      3,
+			TotalVolumeSold:           3,
+			WeightedAvgPriceEurPerMwh: 2.5,
+			NumberOfWinners:           1,
+		},
+	}
+	if err := db.Create(&rows).Error; err != nil {
+		t.Fatalf("insert rows: %v", err)
+	}
+
+	service, err := NewDataService(db, &stubLogWriter{})
+	if err != nil {
+		t.Fatalf("NewDataService: %v", err)
+	}
+
+	results, err := service.GetData(context.Background(), "", "", "year", false)
+	if err != nil {
+		t.Fatalf("GetData: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("results = %d, want 2", len(results))
+	}
+
+	var solar models.AuctionResult
+	var wind models.AuctionResult
+	for _, row := range results {
+		if row.Region != "" {
+			t.Fatalf("region = %q, want empty", row.Region)
+		}
+		switch row.Technology {
+		case "Solar":
+			solar = row
+		case "Wind":
+			wind = row
+		}
+	}
+
+	if solar.TotalVolumeAuctioned != 3 || solar.TotalVolumeSold != 3 {
+		t.Fatalf("solar totals = %v/%v, want 3/3", solar.TotalVolumeAuctioned, solar.TotalVolumeSold)
+	}
+	if math.Abs(solar.WeightedAvgPriceEurPerMwh-1.0) > 1e-9 {
+		t.Fatalf("solar avg price = %v, want 1.0", solar.WeightedAvgPriceEurPerMwh)
+	}
+	if wind.TotalVolumeAuctioned != 3 || wind.TotalVolumeSold != 3 {
+		t.Fatalf("wind totals = %v/%v, want 3/3", wind.TotalVolumeAuctioned, wind.TotalVolumeSold)
+	}
+	if math.Abs(wind.WeightedAvgPriceEurPerMwh-2.5) > 1e-9 {
+		t.Fatalf("wind avg price = %v, want 2.5", wind.WeightedAvgPriceEurPerMwh)
+	}
+}
+
+func TestDataServiceGetDataGroupedByMonthSumTech(t *testing.T) {
+	db := openTestDB(t)
+	createAuctionResultsTable(t, db)
+
+	rows := []models.AuctionResult{
+		{
+			ID:                        "row-1",
+			SourceFile:                "file.xlsx",
+			Participants:              10,
+			Year:                      2024,
+			Month:                     1,
+			Region:                    "South",
+			Technology:                "Solar",
+			TotalVolumeAuctioned:      1,
+			TotalVolumeSold:           1,
+			WeightedAvgPriceEurPerMwh: 0.5,
+			NumberOfWinners:           1,
+		},
+		{
+			ID:                        "row-2",
+			SourceFile:                "file.xlsx",
+			Participants:              10,
+			Year:                      2024,
+			Month:                     1,
+			Region:                    "West",
+			Technology:                "Wind",
+			TotalVolumeAuctioned:      3,
+			TotalVolumeSold:           2,
+			WeightedAvgPriceEurPerMwh: 1.5,
+			NumberOfWinners:           1,
+		},
+	}
+	if err := db.Create(&rows).Error; err != nil {
+		t.Fatalf("insert rows: %v", err)
+	}
+
+	service, err := NewDataService(db, &stubLogWriter{})
+	if err != nil {
+		t.Fatalf("NewDataService: %v", err)
+	}
+
+	results, err := service.GetData(context.Background(), "", "", "month", true)
+	if err != nil {
+		t.Fatalf("GetData: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("results = %d, want 1", len(results))
+	}
+	row := results[0]
+	if row.Region != "" {
+		t.Fatalf("region = %q, want empty", row.Region)
+	}
+	if row.TotalVolumeAuctioned != 4 || row.TotalVolumeSold != 3 {
+		t.Fatalf("totals = %v/%v, want 4/3", row.TotalVolumeAuctioned, row.TotalVolumeSold)
+	}
+	if math.Abs(row.WeightedAvgPriceEurPerMwh-1.0) > 1e-9 {
+		t.Fatalf("avg price = %v, want 1.0", row.WeightedAvgPriceEurPerMwh)
+	}
+	if row.Technology != "" {
+		t.Fatalf("technology = %q, want empty", row.Technology)
+	}
+}
+
+func TestDataServiceGetDataSumTechDefaultsToMonth(t *testing.T) {
+	db := openTestDB(t)
+	createAuctionResultsTable(t, db)
+
+	rows := []models.AuctionResult{
+		{
+			ID:                        "row-1",
+			SourceFile:                "file.xlsx",
+			Participants:              10,
+			Year:                      2025,
+			Month:                     3,
+			Region:                    "North",
+			Technology:                "Solar",
+			TotalVolumeAuctioned:      2,
+			TotalVolumeSold:           2,
+			WeightedAvgPriceEurPerMwh: 0.8,
+			NumberOfWinners:           1,
+		},
+		{
+			ID:                        "row-2",
+			SourceFile:                "file.xlsx",
+			Participants:              10,
+			Year:                      2025,
+			Month:                     3,
+			Region:                    "South",
+			Technology:                "Wind",
+			TotalVolumeAuctioned:      4,
+			TotalVolumeSold:           3,
+			WeightedAvgPriceEurPerMwh: 1.2,
+			NumberOfWinners:           1,
+		},
+	}
+	if err := db.Create(&rows).Error; err != nil {
+		t.Fatalf("insert rows: %v", err)
+	}
+
+	service, err := NewDataService(db, &stubLogWriter{})
+	if err != nil {
+		t.Fatalf("NewDataService: %v", err)
+	}
+
+	results, err := service.GetData(context.Background(), "", "", "", true)
+	if err != nil {
+		t.Fatalf("GetData: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("results = %d, want 1", len(results))
+	}
+	row := results[0]
+	if row.Year != 2025 || row.Month != 3 {
+		t.Fatalf("year/month = %d/%d, want 2025/3", row.Year, row.Month)
+	}
+	if row.Region != "" {
+		t.Fatalf("region = %q, want empty", row.Region)
+	}
+	if row.Technology != "" {
+		t.Fatalf("technology = %q, want empty", row.Technology)
+	}
+	if row.TotalVolumeAuctioned != 6 || row.TotalVolumeSold != 5 {
+		t.Fatalf("totals = %v/%v, want 6/5", row.TotalVolumeAuctioned, row.TotalVolumeSold)
+	}
+	if math.Abs(row.WeightedAvgPriceEurPerMwh-1.0) > 1e-9 {
+		t.Fatalf("avg price = %v, want 1.0", row.WeightedAvgPriceEurPerMwh)
 	}
 }
 

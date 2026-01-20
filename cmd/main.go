@@ -118,6 +118,7 @@ func main() {
 	}
 
 	router := gin.New()
+	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
 
 	if err := controllers.RegisterHealthRoutes(router); err != nil {
@@ -135,6 +136,8 @@ func main() {
 	if err := refreshController.RegisterRoutes(router); err != nil {
 		log.Fatalf("register refresh routes: %v", err)
 	}
+	router.StaticFile("/", "index.html")
+	router.StaticFile("/index.html", "index.html")
 
 	if err := startCron(pipelineService); err != nil {
 		log.Fatalf("start cron: %v", err)

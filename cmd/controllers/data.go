@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"solback/internal/models"
 	"solback/internal/services"
@@ -12,7 +13,7 @@ import (
 )
 
 type DataProvider interface {
-	GetData(ctx context.Context, period string, technology string) ([]models.AuctionResult, error)
+	GetData(ctx context.Context, period string, technology string, groupPeriod string, sumTech bool) ([]models.AuctionResult, error)
 	DeleteData(ctx context.Context) (int, error)
 }
 
@@ -47,15 +48,30 @@ func (c *DataController) RegisterRoutes(router *gin.Engine) error {
 
 func (c *DataController) getData(ctx *gin.Context) {
 	period := ctx.Query("period")
+	groupPeriod := ctx.Query("group_period")
 	technology := ctx.Query("tech")
 	if technology == "" {
 		technology = ctx.Query("technology")
 	}
+	sumTechParam := ctx.Query("sum_tech")
+	sumTech := false
+	if sumTechParam != "" {
+		parsed, err := strconv.ParseBool(sumTechParam)
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid sum_tech"})
+			return
+		}
+		sumTech = parsed
+	}
 
-	results, err := c.service.GetData(ctx.Request.Context(), period, technology)
+	results, err := c.service.GetData(ctx.Request.Context(), period, technology, groupPeriod, sumTech)
 	if err != nil {
 		if errors.Is(err, services.ErrInvalidPeriod) {
 			ctx.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid period"})
+			return
+		}
+		if errors.Is(err, services.ErrInvalidGroupPeriod) {
+			ctx.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid group_period"})
 			return
 		}
 		ctx.JSON(http.StatusInternalServerError, ErrorResponse{Error: "failed to load data"})

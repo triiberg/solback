@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Solback Data Check</title>
+    <style>
+      :root {
+        --ink: #1d1b1a;
+        --muted: #5c5a57;
+        --surface: #fffaf1;
+        --accent: #1d6a5a;
+        --accent-2: #c24c2d;
+        --line: #e3dccb;
+        --shadow: 0 16px 40px rgba(34, 31, 30, 0.12);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        color: var(--ink);
+        font-family: "Palatino Linotype", "Book Antiqua", Palatino, serif;
+        background: radial-gradient(circle at 10% 20%, #f2efe6 0%, transparent 40%),
+          radial-gradient(circle at 90% 0%, #e7f0f4 0%, transparent 50%),
+          linear-gradient(135deg, #f8f1e6 0%, #f2f7f3 45%, #f8ece6 100%);
+        min-height: 100vh;
+        padding: 32px 16px 48px;
+      }
+
+      .page {
+        max-width: 1100px;
+        margin: 0 auto;
+        display: grid;
+        gap: 24px;
+      }
+
+      header {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        padding: 28px;
+        border-radius: 18px;
+        box-shadow: var(--shadow);
+        position: relative;
+        overflow: hidden;
+        animation: float-in 600ms ease-out;
+      }
+
+      header::after {
+        content: "";
+        position: absolute;
+        inset: -30% 40% auto -20%;
+        height: 160px;
+        background: linear-gradient(120deg, rgba(29, 106, 90, 0.12), rgba(194, 76, 45, 0.12));
+        transform: rotate(-2deg);
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-family: "Trebuchet MS", "Lucida Grande", "Lucida Sans Unicode", sans-serif;
+        font-size: clamp(26px, 3vw, 34px);
+        letter-spacing: 0.5px;
+      }
+
+      p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 1.5;
+      }
+
+      .controls {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        padding: 20px 24px;
+        border-radius: 16px;
+        box-shadow: var(--shadow);
+        display: grid;
+        gap: 16px;
+        animation: float-in 700ms ease-out;
+      }
+
+      .control-grid {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      }
+
+      label {
+        display: block;
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+
+      input,
+      select {
+        width: 100%;
+        padding: 10px 12px;
+        font-size: 15px;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: #ffffff;
+        color: var(--ink);
+        font-family: "Trebuchet MS", "Lucida Grande", "Lucida Sans Unicode", sans-serif;
+      }
+
+      .toggle {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 4px;
+      }
+
+      .toggle input {
+        width: auto;
+        transform: scale(1.1);
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+      }
+
+      button {
+        border: none;
+        padding: 10px 18px;
+        border-radius: 999px;
+        background: var(--accent);
+        color: #fff;
+        font-size: 15px;
+        font-family: "Trebuchet MS", "Lucida Grande", "Lucida Sans Unicode", sans-serif;
+        cursor: pointer;
+        transition: transform 150ms ease, box-shadow 150ms ease;
+        box-shadow: 0 10px 18px rgba(29, 106, 90, 0.2);
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 12px 24px rgba(29, 106, 90, 0.25);
+      }
+
+      .status {
+        color: var(--accent-2);
+        font-size: 14px;
+      }
+
+      .results {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 16px;
+        box-shadow: var(--shadow);
+        animation: float-in 800ms ease-out;
+      }
+
+      .summary {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        align-items: center;
+        margin-bottom: 12px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+
+      th,
+      td {
+        text-align: left;
+        padding: 10px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      th {
+        font-family: "Trebuchet MS", "Lucida Grande", "Lucida Sans Unicode", sans-serif;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+      }
+
+      tbody tr {
+        animation: fade-in 300ms ease;
+      }
+
+      tbody tr:nth-child(even) {
+        background: rgba(29, 106, 90, 0.04);
+      }
+
+      @keyframes float-in {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes fade-in {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header>
+        <h1>Data Check Console</h1>
+        <p>Quickly verify the output of <strong>/data</strong> with grouping and sum options.</p>
+      </header>
+
+      <section class="controls">
+        <div class="control-grid">
+          <div>
+            <label for="periodStart">Period start year</label>
+            <input id="periodStart" type="number" min="2000" max="2100" placeholder="2024" />
+          </div>
+          <div>
+            <label for="periodEnd">Period end year</label>
+            <input id="periodEnd" type="number" min="2000" max="2100" placeholder="2025" />
+          </div>
+          <div>
+            <label for="groupPeriod">Group by</label>
+            <select id="groupPeriod">
+              <option value="">None</option>
+              <option value="year">Year</option>
+              <option value="month">Year + Month</option>
+            </select>
+          </div>
+          <div>
+            <label>Sum technology</label>
+            <div class="toggle">
+              <input id="sumTech" type="checkbox" />
+              <span>Combine all technologies</span>
+            </div>
+          </div>
+        </div>
+        <div class="actions">
+          <button id="loadBtn" type="button">Load data</button>
+          <span class="status" id="status"></span>
+        </div>
+      </section>
+
+      <section class="results">
+        <div class="summary">
+          <div id="rowCount">No data loaded.</div>
+          <div id="queryLabel"></div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Year</th>
+                <th>Month</th>
+                <th>Technology</th>
+                <th>Total volume auctioned</th>
+                <th>Total volume sold</th>
+                <th>Avg price (EUR/MWh)</th>
+              </tr>
+            </thead>
+            <tbody id="resultsBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      (function () {
+        var loadBtn = document.getElementById("loadBtn");
+        var statusEl = document.getElementById("status");
+        var resultsBody = document.getElementById("resultsBody");
+        var rowCount = document.getElementById("rowCount");
+        var queryLabel = document.getElementById("queryLabel");
+
+        function clearTable() {
+          while (resultsBody.firstChild) {
+            resultsBody.removeChild(resultsBody.firstChild);
+          }
+        }
+
+        function formatNumber(value) {
+          if (value === null || value === undefined || value === "") {
+            return "-";
+          }
+          var num = typeof value === "number" ? value : Number(value);
+          if (!Number.isFinite(num)) {
+            return String(value);
+          }
+          if (Math.abs(num % 1) < 1e-9) {
+            return String(num);
+          }
+          return num.toFixed(3);
+        }
+
+        function setStatus(message) {
+          statusEl.textContent = message;
+        }
+
+        function buildQuery() {
+          var params = [];
+          var start = document.getElementById("periodStart").value.trim();
+          var end = document.getElementById("periodEnd").value.trim();
+          var group = document.getElementById("groupPeriod").value;
+          var sumTech = document.getElementById("sumTech").checked;
+
+          if (start || end) {
+            if (!start || !end) {
+              return { error: "Provide both period start and end years." };
+            }
+            params.push("period=" + encodeURIComponent(start + "-" + end));
+          }
+          if (group) {
+            params.push("group_period=" + encodeURIComponent(group));
+          }
+          if (sumTech) {
+            params.push("sum_tech=true");
+          }
+
+          return { query: params.join("&") };
+        }
+
+        function renderRows(rows) {
+          clearTable();
+          rows.forEach(function (row) {
+            var tr = document.createElement("tr");
+            var cells = [
+              row.year,
+              row.month,
+              row.technology,
+              formatNumber(row.total_volume_auctioned),
+              formatNumber(row.total_volume_sold),
+              formatNumber(row.weighted_avg_price_eur_per_mwh),
+            ];
+            cells.forEach(function (value) {
+              var td = document.createElement("td");
+              td.textContent = value === undefined || value === "" ? "-" : value;
+              tr.appendChild(td);
+            });
+            resultsBody.appendChild(tr);
+          });
+        }
+
+        function loadData() {
+          setStatus("Loading...");
+          clearTable();
+          rowCount.textContent = "Loading data...";
+          queryLabel.textContent = "";
+
+          var queryInfo = buildQuery();
+          if (queryInfo.error) {
+            setStatus(queryInfo.error);
+            rowCount.textContent = "No data loaded.";
+            return;
+          }
+
+          var endpoint = "/data";
+          if (queryInfo.query) {
+            endpoint += "?" + queryInfo.query;
+          }
+          queryLabel.textContent = endpoint;
+
+          var xhr = new XMLHttpRequest();
+          xhr.open("GET", endpoint, true);
+          xhr.onreadystatechange = function () {
+            if (xhr.readyState !== 4) {
+              return;
+            }
+            if (xhr.status < 200 || xhr.status >= 300) {
+              setStatus("Request failed (" + xhr.status + ").");
+              rowCount.textContent = "No data loaded.";
+              return;
+            }
+
+            var data;
+            try {
+              data = JSON.parse(xhr.responseText);
+            } catch (err) {
+              setStatus("Response is not valid JSON.");
+              rowCount.textContent = "No data loaded.";
+              return;
+            }
+
+            if (!Array.isArray(data)) {
+              setStatus("Unexpected response shape.");
+              rowCount.textContent = "No data loaded.";
+              return;
+            }
+
+            setStatus("");
+            rowCount.textContent = "Rows: " + data.length;
+            renderRows(data);
+          };
+          xhr.onerror = function () {
+            setStatus("Network error.");
+            rowCount.textContent = "No data loaded.";
+          };
+          xhr.send();
+        }
+
+        loadBtn.addEventListener("click", loadData);
+      })();
+    </script>
+  </body>
+</html>
