@@ -240,13 +240,32 @@
       <section class="card">
         <h2>GET endpoints</h2>
         <div class="endpoints">
-          <div><a href="/health" target="_blank" rel="noreferrer">GET /health</a> — service status</div>
-          <div><a href="/sources" target="_blank" rel="noreferrer">GET /sources</a> — configured data sources</div>
-          <div><a href="/logs" target="_blank" rel="noreferrer">GET /logs</a> — ingestion logs</div>
-          <div><a href="/data" target="_blank" rel="noreferrer">GET /data</a> — auction data with filters</div>
-          <div><a href="/refresh" target="_blank" rel="noreferrer">GET /refresh</a> — trigger a refresh run</div>
+          <div><a href="/health" target="_blank" rel="noreferrer">GET /health</a>  service status</div>
+          <div><a href="/sources" target="_blank" rel="noreferrer">GET /sources</a>  configured data sources</div>
+          <div><a href="/logs" target="_blank" rel="noreferrer">GET /logs</a>  ingestion logs</div>
+          <div><a href="/data" target="_blank" rel="noreferrer">GET /data</a>  auction data with filters</div>
+          <div><a href="/refresh" target="_blank" rel="noreferrer">GET /refresh</a>  trigger a refresh run</div>
         </div>
       </section>
+
+      <section class="card">
+        <h2>Product + DevOps notes</h2>
+        <p>
+          <strong>Product notes:</strong> Solback powers the Sol frontend by delivering structured auction data and
+          filters for year, technology, and aggregation. The UI focuses on quick trend insight with interactive charts
+          while keeping the raw dataset accessible.
+        </p>
+        <p>
+          <strong>DevOps overview:</strong> Kubernetes runs Postgres as a StatefulSet with a 1Gi PVC, the Go API as a
+          Deployment with config + secret mounts, and the React frontend as a separate Deployment. Traefik + Lets
+          Encrypt terminate TLS for both domains, and images are pulled from GHCR via a registry secret.
+        </p>
+        <p>
+          <strong>Known issues:</strong> The refresh cron lives inside the API pod, so scaling the deployment would
+          duplicate refresh runs. The UI does not surface a "last data received" timestamp yet.
+        </p>
+      </section>
+
 
       <footer>
         Coded by Codex, supervised by T.R.
