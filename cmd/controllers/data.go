@@ -13,7 +13,7 @@ import (
 )
 
 type DataProvider interface {
-	GetData(ctx context.Context, period string, technology string, groupPeriod string, sumTech bool) ([]models.AuctionResult, error)
+	GetData(ctx context.Context, period string, technology string, groupPeriod string, sumTech bool, from string, to string, techIn string, sort string, limit string) ([]models.AuctionResult, error)
 	DeleteData(ctx context.Context) (int, error)
 }
 
@@ -49,6 +49,11 @@ func (c *DataController) RegisterRoutes(router *gin.Engine) error {
 func (c *DataController) getData(ctx *gin.Context) {
 	period := ctx.Query("period")
 	groupPeriod := ctx.Query("group_period")
+	from := ctx.Query("from")
+	to := ctx.Query("to")
+	techIn := ctx.Query("tech_in")
+	sort := ctx.Query("sort")
+	limit := ctx.Query("limit")
 	technology := ctx.Query("tech")
 	if technology == "" {
 		technology = ctx.Query("technology")
@@ -64,7 +69,7 @@ func (c *DataController) getData(ctx *gin.Context) {
 		sumTech = parsed
 	}
 
-	results, err := c.service.GetData(ctx.Request.Context(), period, technology, groupPeriod, sumTech)
+	results, err := c.service.GetData(ctx.Request.Context(), period, technology, groupPeriod, sumTech, from, to, techIn, sort, limit)
 	if err != nil {
 		if errors.Is(err, services.ErrInvalidPeriod) {
 			ctx.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid period"})
@@ -72,6 +77,18 @@ func (c *DataController) getData(ctx *gin.Context) {
 		}
 		if errors.Is(err, services.ErrInvalidGroupPeriod) {
 			ctx.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid group_period"})
+			return
+		}
+		if errors.Is(err, services.ErrInvalidMonthRange) {
+			ctx.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid month range"})
+			return
+		}
+		if errors.Is(err, services.ErrInvalidSort) {
+			ctx.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid sort"})
+			return
+		}
+		if errors.Is(err, services.ErrInvalidLimit) {
+			ctx.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid limit"})
 			return
 		}
 		ctx.JSON(http.StatusInternalServerError, ErrorResponse{Error: "failed to load data"})

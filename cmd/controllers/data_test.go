@@ -22,14 +22,24 @@ type stubDataService struct {
 	tech    string
 	group   string
 	sumTech bool
+	from    string
+	to      string
+	techIn  string
+	sort    string
+	limit   string
 	deleted int
 }
 
-func (s *stubDataService) GetData(ctx context.Context, period string, technology string, groupPeriod string, sumTech bool) ([]models.AuctionResult, error) {
+func (s *stubDataService) GetData(ctx context.Context, period string, technology string, groupPeriod string, sumTech bool, from string, to string, techIn string, sort string, limit string) ([]models.AuctionResult, error) {
 	s.period = period
 	s.tech = technology
 	s.group = groupPeriod
 	s.sumTech = sumTech
+	s.from = from
+	s.to = to
+	s.techIn = techIn
+	s.sort = sort
+	s.limit = limit
 	if s.getErr != nil {
 		return nil, s.getErr
 	}
@@ -59,7 +69,7 @@ func TestDataHandlerSuccess(t *testing.T) {
 		t.Fatalf("register data routes: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/data?period=2024-2025&tech=Tech&group_period=year&sum_tech=true", nil)
+	req := httptest.NewRequest(http.MethodGet, "/data?period=2024-2025&tech=Tech&group_period=year&sum_tech=true&from=2024-01&to=2025-12&tech_in=Solar,Wind&sort=year_desc,month_desc&limit=1", nil)
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, req)
 
@@ -77,6 +87,21 @@ func TestDataHandlerSuccess(t *testing.T) {
 	}
 	if !service.sumTech {
 		t.Fatalf("sum_tech = %v, want true", service.sumTech)
+	}
+	if service.from != "2024-01" {
+		t.Fatalf("from = %q, want %q", service.from, "2024-01")
+	}
+	if service.to != "2025-12" {
+		t.Fatalf("to = %q, want %q", service.to, "2025-12")
+	}
+	if service.techIn != "Solar,Wind" {
+		t.Fatalf("tech_in = %q, want %q", service.techIn, "Solar,Wind")
+	}
+	if service.sort != "year_desc,month_desc" {
+		t.Fatalf("sort = %q, want %q", service.sort, "year_desc,month_desc")
+	}
+	if service.limit != "1" {
+		t.Fatalf("limit = %q, want %q", service.limit, "1")
 	}
 
 	var resp []models.AuctionResult
@@ -110,6 +135,28 @@ func TestDataHandlerInvalidPeriod(t *testing.T) {
 	}
 }
 
+func TestDataHandlerInvalidMonthRange(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	controller, err := NewDataController(&stubDataService{getErr: services.ErrInvalidMonthRange})
+	if err != nil {
+		t.Fatalf("NewDataController: %v", err)
+	}
+
+	router := gin.New()
+	if err := controller.RegisterRoutes(router); err != nil {
+		t.Fatalf("register data routes: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/data?from=2024-13", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, recorder.Code)
+	}
+}
+
 func TestDataHandlerInvalidSumTech(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -133,6 +180,49 @@ func TestDataHandlerInvalidSumTech(t *testing.T) {
 	}
 }
 
+func TestDataHandlerInvalidLimit(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	controller, err := NewDataController(&stubDataService{getErr: services.ErrInvalidLimit})
+	if err != nil {
+		t.Fatalf("NewDataController: %v", err)
+	}
+
+	router := gin.New()
+	if err := controller.RegisterRoutes(router); err != nil {
+		t.Fatalf("register data routes: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/data?limit=0", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, recorder.Code)
+	}
+}
+
+func TestDataHandlerInvalidSort(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	controller, err := NewDataController(&stubDataService{getErr: services.ErrInvalidSort})
+	if err != nil {
+		t.Fatalf("NewDataController: %v", err)
+	}
+
+	router := gin.New()
+	if err := controller.RegisterRoutes(router); err != nil {
+		t.Fatalf("register data routes: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/data?sort=region_desc", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, recorder.Code)
+	}
+}
 func TestDataHandlerError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
