@@ -125,7 +125,7 @@ func TestDataServiceGetDataFilters(t *testing.T) {
 		t.Fatalf("NewDataService: %v", err)
 	}
 
-	results, err := service.GetData(context.Background(), "2024-2025", "Solar", "", false)
+	results, err := service.GetData(context.Background(), "2024-2025", "Solar", "", false, "", "", "", "", "")
 	if err != nil {
 		t.Fatalf("GetData: %v", err)
 	}
@@ -146,7 +146,7 @@ func TestDataServiceGetDataInvalidPeriod(t *testing.T) {
 		t.Fatalf("NewDataService: %v", err)
 	}
 
-	if _, err := service.GetData(context.Background(), "2024", "", "", false); !errors.Is(err, ErrInvalidPeriod) {
+	if _, err := service.GetData(context.Background(), "2024", "", "", false, "", "", "", "", ""); !errors.Is(err, ErrInvalidPeriod) {
 		t.Fatalf("expected ErrInvalidPeriod, got %v", err)
 	}
 }
@@ -160,8 +160,238 @@ func TestDataServiceGetDataInvalidGroupPeriod(t *testing.T) {
 		t.Fatalf("NewDataService: %v", err)
 	}
 
-	if _, err := service.GetData(context.Background(), "", "", "quarter", false); !errors.Is(err, ErrInvalidGroupPeriod) {
+	if _, err := service.GetData(context.Background(), "", "", "quarter", false, "", "", "", "", ""); !errors.Is(err, ErrInvalidGroupPeriod) {
 		t.Fatalf("expected ErrInvalidGroupPeriod, got %v", err)
+	}
+}
+
+func TestDataServiceGetDataInvalidMonthRange(t *testing.T) {
+	db := openTestDB(t)
+	createAuctionResultsTable(t, db)
+
+	service, err := NewDataService(db, &stubLogWriter{})
+	if err != nil {
+		t.Fatalf("NewDataService: %v", err)
+	}
+
+	if _, err := service.GetData(context.Background(), "", "", "", false, "2024-13", "", "", "", ""); !errors.Is(err, ErrInvalidMonthRange) {
+		t.Fatalf("expected ErrInvalidMonthRange, got %v", err)
+	}
+	if _, err := service.GetData(context.Background(), "", "", "", false, "2025-02", "2025-01", "", "", ""); !errors.Is(err, ErrInvalidMonthRange) {
+		t.Fatalf("expected ErrInvalidMonthRange, got %v", err)
+	}
+}
+
+func TestDataServiceGetDataMonthRangeFilter(t *testing.T) {
+	db := openTestDB(t)
+	createAuctionResultsTable(t, db)
+
+	rows := []models.AuctionResult{
+		{
+			ID:                        "row-1",
+			SourceFile:                "file.xlsx",
+			Participants:              10,
+			Year:                      2024,
+			Month:                     1,
+			Region:                    "Region1",
+			Technology:                "Solar",
+			TotalVolumeAuctioned:      1,
+			TotalVolumeSold:           1,
+			WeightedAvgPriceEurPerMwh: 0.3,
+			NumberOfWinners:           1,
+		},
+		{
+			ID:                        "row-2",
+			SourceFile:                "file.xlsx",
+			Participants:              10,
+			Year:                      2024,
+			Month:                     6,
+			Region:                    "Region2",
+			Technology:                "Solar",
+			TotalVolumeAuctioned:      2,
+			TotalVolumeSold:           2,
+			WeightedAvgPriceEurPerMwh: 0.4,
+			NumberOfWinners:           1,
+		},
+		{
+			ID:                        "row-3",
+			SourceFile:                "file.xlsx",
+			Participants:              10,
+			Year:                      2025,
+			Month:                     1,
+			Region:                    "Region3",
+			Technology:                "Solar",
+			TotalVolumeAuctioned:      3,
+			TotalVolumeSold:           3,
+			WeightedAvgPriceEurPerMwh: 0.5,
+			NumberOfWinners:           1,
+		},
+	}
+	if err := db.Create(&rows).Error; err != nil {
+		t.Fatalf("insert rows: %v", err)
+	}
+
+	service, err := NewDataService(db, &stubLogWriter{})
+	if err != nil {
+		t.Fatalf("NewDataService: %v", err)
+	}
+
+	results, err := service.GetData(context.Background(), "", "", "", false, "2024-05", "2024-12", "", "", "")
+	if err != nil {
+		t.Fatalf("GetData: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("results = %d, want 1", len(results))
+	}
+	if results[0].Year != 2024 || results[0].Month != 6 {
+		t.Fatalf("year/month = %d/%d, want 2024/6", results[0].Year, results[0].Month)
+	}
+}
+
+func TestDataServiceGetDataTechInFilter(t *testing.T) {
+	db := openTestDB(t)
+	createAuctionResultsTable(t, db)
+
+	rows := []models.AuctionResult{
+		{
+			ID:                        "row-1",
+			SourceFile:                "file.xlsx",
+			Participants:              10,
+			Year:                      2024,
+			Month:                     1,
+			Region:                    "Region1",
+			Technology:                "Solar",
+			TotalVolumeAuctioned:      1,
+			TotalVolumeSold:           1,
+			WeightedAvgPriceEurPerMwh: 0.3,
+			NumberOfWinners:           1,
+		},
+		{
+			ID:                        "row-2",
+			SourceFile:                "file.xlsx",
+			Participants:              10,
+			Year:                      2024,
+			Month:                     1,
+			Region:                    "Region2",
+			Technology:                "Hydro",
+			TotalVolumeAuctioned:      2,
+			TotalVolumeSold:           2,
+			WeightedAvgPriceEurPerMwh: 0.4,
+			NumberOfWinners:           1,
+		},
+		{
+			ID:                        "row-3",
+			SourceFile:                "file.xlsx",
+			Participants:              10,
+			Year:                      2024,
+			Month:                     1,
+			Region:                    "Region3",
+			Technology:                "Wind",
+			TotalVolumeAuctioned:      3,
+			TotalVolumeSold:           3,
+			WeightedAvgPriceEurPerMwh: 0.5,
+			NumberOfWinners:           1,
+		},
+	}
+	if err := db.Create(&rows).Error; err != nil {
+		t.Fatalf("insert rows: %v", err)
+	}
+
+	service, err := NewDataService(db, &stubLogWriter{})
+	if err != nil {
+		t.Fatalf("NewDataService: %v", err)
+	}
+
+	results, err := service.GetData(context.Background(), "", "", "", false, "", "", "Solar, HYDRO", "", "")
+	if err != nil {
+		t.Fatalf("GetData: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("results = %d, want 2", len(results))
+	}
+}
+
+func TestDataServiceGetDataSortAndLimit(t *testing.T) {
+	db := openTestDB(t)
+	createAuctionResultsTable(t, db)
+
+	rows := []models.AuctionResult{
+		{
+			ID:                        "row-1",
+			SourceFile:                "file.xlsx",
+			Participants:              10,
+			Year:                      2024,
+			Month:                     12,
+			Region:                    "Region1",
+			Technology:                "Solar",
+			TotalVolumeAuctioned:      1,
+			TotalVolumeSold:           1,
+			WeightedAvgPriceEurPerMwh: 0.3,
+			NumberOfWinners:           1,
+		},
+		{
+			ID:                        "row-2",
+			SourceFile:                "file.xlsx",
+			Participants:              10,
+			Year:                      2025,
+			Month:                     1,
+			Region:                    "Region2",
+			Technology:                "Solar",
+			TotalVolumeAuctioned:      2,
+			TotalVolumeSold:           2,
+			WeightedAvgPriceEurPerMwh: 0.4,
+			NumberOfWinners:           1,
+		},
+	}
+	if err := db.Create(&rows).Error; err != nil {
+		t.Fatalf("insert rows: %v", err)
+	}
+
+	service, err := NewDataService(db, &stubLogWriter{})
+	if err != nil {
+		t.Fatalf("NewDataService: %v", err)
+	}
+
+	results, err := service.GetData(context.Background(), "", "", "", false, "", "", "", "year_desc,month_desc", "1")
+	if err != nil {
+		t.Fatalf("GetData: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("results = %d, want 1", len(results))
+	}
+	if results[0].Year != 2025 || results[0].Month != 1 {
+		t.Fatalf("year/month = %d/%d, want 2025/1", results[0].Year, results[0].Month)
+	}
+}
+
+func TestDataServiceGetDataInvalidLimit(t *testing.T) {
+	db := openTestDB(t)
+	createAuctionResultsTable(t, db)
+
+	service, err := NewDataService(db, &stubLogWriter{})
+	if err != nil {
+		t.Fatalf("NewDataService: %v", err)
+	}
+
+	if _, err := service.GetData(context.Background(), "", "", "", false, "", "", "", "", "0"); !errors.Is(err, ErrInvalidLimit) {
+		t.Fatalf("expected ErrInvalidLimit, got %v", err)
+	}
+	if _, err := service.GetData(context.Background(), "", "", "", false, "", "", "", "", "nope"); !errors.Is(err, ErrInvalidLimit) {
+		t.Fatalf("expected ErrInvalidLimit, got %v", err)
+	}
+}
+
+func TestDataServiceGetDataInvalidSort(t *testing.T) {
+	db := openTestDB(t)
+	createAuctionResultsTable(t, db)
+
+	service, err := NewDataService(db, &stubLogWriter{})
+	if err != nil {
+		t.Fatalf("NewDataService: %v", err)
+	}
+
+	if _, err := service.GetData(context.Background(), "", "", "", false, "", "", "", "region_desc", ""); !errors.Is(err, ErrInvalidSort) {
+		t.Fatalf("expected ErrInvalidSort, got %v", err)
 	}
 }
 
@@ -219,7 +449,7 @@ func TestDataServiceGetDataGroupedByYear(t *testing.T) {
 		t.Fatalf("NewDataService: %v", err)
 	}
 
-	results, err := service.GetData(context.Background(), "", "", "year", false)
+	results, err := service.GetData(context.Background(), "", "", "year", false, "", "", "", "", "")
 	if err != nil {
 		t.Fatalf("GetData: %v", err)
 	}
@@ -296,7 +526,7 @@ func TestDataServiceGetDataGroupedByMonthSumTech(t *testing.T) {
 		t.Fatalf("NewDataService: %v", err)
 	}
 
-	results, err := service.GetData(context.Background(), "", "", "month", true)
+	results, err := service.GetData(context.Background(), "", "", "month", true, "", "", "", "", "")
 	if err != nil {
 		t.Fatalf("GetData: %v", err)
 	}
@@ -359,7 +589,7 @@ func TestDataServiceGetDataSumTechDefaultsToMonth(t *testing.T) {
 		t.Fatalf("NewDataService: %v", err)
 	}
 
-	results, err := service.GetData(context.Background(), "", "", "", true)
+	results, err := service.GetData(context.Background(), "", "", "", true, "", "", "", "", "")
 	if err != nil {
 		t.Fatalf("GetData: %v", err)
 	}

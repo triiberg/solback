@@ -170,6 +170,40 @@
         font-size: 14px;
       }
 
+      .summary-cards {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        margin-bottom: 16px;
+      }
+
+      .card {
+        background: #fffdf6;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 14px 16px;
+        box-shadow: 0 8px 18px rgba(34, 31, 30, 0.08);
+      }
+
+      .card-label {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+      }
+
+      .card-value {
+        font-size: 20px;
+        font-weight: 600;
+        margin-top: 6px;
+      }
+
+      .card-sub {
+        font-size: 13px;
+        color: var(--muted);
+        margin-top: 4px;
+      }
+
       table {
         width: 100%;
         border-collapse: collapse;
@@ -238,6 +272,14 @@
             <input id="periodEnd" type="number" min="2000" max="2100" placeholder="2025" />
           </div>
           <div>
+            <label for="fromMonth">From (YYYY-MM)</label>
+            <input id="fromMonth" type="text" placeholder="2024-01" />
+          </div>
+          <div>
+            <label for="toMonth">To (YYYY-MM)</label>
+            <input id="toMonth" type="text" placeholder="2025-12" />
+          </div>
+          <div>
             <label for="groupPeriod">Group by</label>
             <select id="groupPeriod">
               <option value="">None</option>
@@ -246,10 +288,21 @@
             </select>
           </div>
           <div>
+            <label for="techIn">Technologies (comma-separated)</label>
+            <input id="techIn" type="text" placeholder="Solar, Hydro, Wind" />
+          </div>
+          <div>
             <label>Sum technology</label>
             <div class="toggle">
               <input id="sumTech" type="checkbox" />
               <span>Combine all technologies</span>
+            </div>
+          </div>
+          <div>
+            <label>Latest only</label>
+            <div class="toggle">
+              <input id="latestOnly" type="checkbox" />
+              <span>Sort desc + limit 1</span>
             </div>
           </div>
         </div>
@@ -260,6 +313,28 @@
       </section>
 
       <section class="results">
+        <div class="summary-cards">
+          <div class="card">
+            <div class="card-label">Latest price</div>
+            <div class="card-value" id="latestPrice">-</div>
+            <div class="card-sub" id="latestPeriod"></div>
+          </div>
+          <div class="card">
+            <div class="card-label">12-month avg</div>
+            <div class="card-value" id="avg12Price">-</div>
+            <div class="card-sub" id="avg12Note">Requires monthly data</div>
+          </div>
+          <div class="card">
+            <div class="card-label">YoY change</div>
+            <div class="card-value" id="yoyChange">-</div>
+            <div class="card-sub" id="yoyNote">Latest year vs previous</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Vs market</div>
+            <div class="card-value" id="marketDelta">-</div>
+            <div class="card-sub" id="marketNote">Tech vs aggregated market</div>
+          </div>
+        </div>
         <div class="summary">
           <div id="rowCount">No data loaded.</div>
           <div id="queryLabel"></div>
@@ -289,6 +364,14 @@
         var resultsBody = document.getElementById("resultsBody");
         var rowCount = document.getElementById("rowCount");
         var queryLabel = document.getElementById("queryLabel");
+        var latestPriceEl = document.getElementById("latestPrice");
+        var latestPeriodEl = document.getElementById("latestPeriod");
+        var avg12PriceEl = document.getElementById("avg12Price");
+        var avg12NoteEl = document.getElementById("avg12Note");
+        var yoyChangeEl = document.getElementById("yoyChange");
+        var yoyNoteEl = document.getElementById("yoyNote");
+        var marketDeltaEl = document.getElementById("marketDelta");
+        var marketNoteEl = document.getElementById("marketNote");
 
         function clearTable() {
           while (resultsBody.firstChild) {
@@ -314,12 +397,54 @@
           statusEl.textContent = message;
         }
 
+        function resetSummaries() {
+          latestPriceEl.textContent = "-";
+          latestPeriodEl.textContent = "";
+          avg12PriceEl.textContent = "-";
+          avg12NoteEl.textContent = "Requires monthly data";
+          yoyChangeEl.textContent = "-";
+          yoyNoteEl.textContent = "Latest year vs previous";
+          marketDeltaEl.textContent = "-";
+          marketNoteEl.textContent = "Tech vs aggregated market";
+        }
+
+        function parseYearMonthInput(value) {
+          var match = value.match(/^(\d{4})-(\d{2})$/);
+          if (!match) {
+            return null;
+          }
+          var year = Number(match[1]);
+          var month = Number(match[2]);
+          if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) {
+            return null;
+          }
+          return { year: year, month: month };
+        }
+
+        function extractTechList(raw) {
+          if (!raw) {
+            return [];
+          }
+          return raw
+            .split(",")
+            .map(function (item) {
+              return item.trim();
+            })
+            .filter(function (item) {
+              return item.length > 0;
+            });
+        }
+
         function buildQuery() {
           var params = [];
           var start = document.getElementById("periodStart").value.trim();
           var end = document.getElementById("periodEnd").value.trim();
+          var fromMonth = document.getElementById("fromMonth").value.trim();
+          var toMonth = document.getElementById("toMonth").value.trim();
           var group = document.getElementById("groupPeriod").value;
           var sumTech = document.getElementById("sumTech").checked;
+          var techInRaw = document.getElementById("techIn").value.trim();
+          var latestOnly = document.getElementById("latestOnly").checked;
 
           if (start || end) {
             if (!start || !end) {
@@ -327,14 +452,55 @@
             }
             params.push("period=" + encodeURIComponent(start + "-" + end));
           }
+          if (fromMonth) {
+            var parsedFrom = parseYearMonthInput(fromMonth);
+            if (!parsedFrom) {
+              return { error: "From month must be in YYYY-MM format." };
+            }
+            params.push("from=" + encodeURIComponent(fromMonth));
+          }
+          if (toMonth) {
+            var parsedTo = parseYearMonthInput(toMonth);
+            if (!parsedTo) {
+              return { error: "To month must be in YYYY-MM format." };
+            }
+            params.push("to=" + encodeURIComponent(toMonth));
+          }
+          if (fromMonth && toMonth) {
+            var fromValue = parseYearMonthInput(fromMonth);
+            var toValue = parseYearMonthInput(toMonth);
+            if (fromValue && toValue) {
+              if (fromValue.year > toValue.year || (fromValue.year === toValue.year && fromValue.month > toValue.month)) {
+                return { error: "From month must be before To month." };
+              }
+            }
+          }
           if (group) {
             params.push("group_period=" + encodeURIComponent(group));
           }
           if (sumTech) {
             params.push("sum_tech=true");
           }
+          if (techInRaw) {
+            params.push("tech_in=" + encodeURIComponent(techInRaw));
+          }
+          if (latestOnly) {
+            params.push("sort=year_desc,month_desc");
+            params.push("limit=1");
+          }
 
-          return { query: params.join("&") };
+          return {
+            query: params.join("&"),
+            options: {
+              period: start && end ? start + "-" + end : "",
+              from: fromMonth,
+              to: toMonth,
+              group: group,
+              sumTech: sumTech,
+              techList: extractTechList(techInRaw),
+              latestOnly: latestOnly,
+            },
+          };
         }
 
         function renderRows(rows) {
@@ -358,11 +524,233 @@
           });
         }
 
+        function toNumber(value) {
+          var num = Number(value);
+          if (!Number.isFinite(num)) {
+            return null;
+          }
+          return num;
+        }
+
+        function compareRows(a, b) {
+          var yearDiff = Number(a.year) - Number(b.year);
+          if (yearDiff !== 0) {
+            return yearDiff;
+          }
+          var monthA = Number(a.month || 0);
+          var monthB = Number(b.month || 0);
+          return monthA - monthB;
+        }
+
+        function getLatestRow(rows) {
+          if (!rows.length) {
+            return null;
+          }
+          return rows.reduce(function (latest, row) {
+            if (!latest) {
+              return row;
+            }
+            return compareRows(latest, row) < 0 ? row : latest;
+          }, null);
+        }
+
+        function formatPeriod(row) {
+          if (!row) {
+            return "";
+          }
+          var year = row.year;
+          if (!row.month || Number(row.month) === 0) {
+            return String(year);
+          }
+          var month = String(row.month).padStart(2, "0");
+          return year + "-" + month;
+        }
+
+        function compute12MonthAverage(rows) {
+          var monthlyRows = rows.filter(function (row) {
+            return Number(row.month) > 0;
+          });
+          if (monthlyRows.length < 12) {
+            return null;
+          }
+          var sorted = monthlyRows.slice().sort(compareRows);
+          var slice = sorted.slice(Math.max(sorted.length - 12, 0));
+          var total = 0;
+          var count = 0;
+          slice.forEach(function (row) {
+            var price = toNumber(row.weighted_avg_price_eur_per_mwh);
+            if (price !== null) {
+              total += price;
+              count += 1;
+            }
+          });
+          if (count === 0) {
+            return null;
+          }
+          return total / count;
+        }
+
+        function computeYearAverages(rows) {
+          var totals = {};
+          rows.forEach(function (row) {
+            var year = Number(row.year);
+            var price = toNumber(row.weighted_avg_price_eur_per_mwh);
+            if (!Number.isFinite(year) || price === null) {
+              return;
+            }
+            if (!totals[year]) {
+              totals[year] = { sum: 0, count: 0 };
+            }
+            totals[year].sum += price;
+            totals[year].count += 1;
+          });
+          return totals;
+        }
+
+        function formatPercent(value) {
+          if (value === null) {
+            return "-";
+          }
+          var sign = value > 0 ? "+" : "";
+          return sign + value.toFixed(1) + "%";
+        }
+
+        function updateSummary(rows, options) {
+          resetSummaries();
+          if (!rows.length) {
+            return;
+          }
+
+          var latestRow = getLatestRow(rows);
+          var latestPrice = latestRow ? toNumber(latestRow.weighted_avg_price_eur_per_mwh) : null;
+          if (latestPrice !== null) {
+            latestPriceEl.textContent = formatNumber(latestPrice);
+            latestPeriodEl.textContent = formatPeriod(latestRow);
+          }
+
+          var avg12 = compute12MonthAverage(rows);
+          if (avg12 !== null) {
+            avg12PriceEl.textContent = formatNumber(avg12);
+            avg12NoteEl.textContent = "Avg of last 12 months";
+          }
+
+          var yearTotals = computeYearAverages(rows);
+          var years = Object.keys(yearTotals)
+            .map(function (value) {
+              return Number(value);
+            })
+            .filter(function (value) {
+              return Number.isFinite(value);
+            })
+            .sort(function (a, b) {
+              return a - b;
+            });
+          if (years.length >= 2) {
+            var latestYear = years[years.length - 1];
+            var prevYear = years[years.length - 2];
+            var latestAvg = yearTotals[latestYear].sum / yearTotals[latestYear].count;
+            var prevAvg = yearTotals[prevYear].sum / yearTotals[prevYear].count;
+            if (prevAvg !== 0) {
+              var change = ((latestAvg - prevAvg) / prevAvg) * 100;
+              yoyChangeEl.textContent = formatPercent(change);
+              yoyNoteEl.textContent = latestYear + " vs " + prevYear;
+            }
+          }
+
+          fetchMarketDelta(latestRow, options);
+        }
+
+        function fetchMarketDelta(latestRow, options) {
+          if (!latestRow || !options || options.sumTech) {
+            marketDeltaEl.textContent = "-";
+            marketNoteEl.textContent = "Tech vs aggregated market";
+            return;
+          }
+
+          var techList = options.techList || [];
+          if (techList.length !== 1) {
+            marketDeltaEl.textContent = "-";
+            marketNoteEl.textContent = "Select one technology";
+            return;
+          }
+
+          marketDeltaEl.textContent = "Loading...";
+          marketNoteEl.textContent = "Comparing to market";
+
+          var params = [];
+          if (options.period) {
+            params.push("period=" + encodeURIComponent(options.period));
+          }
+          if (options.from) {
+            params.push("from=" + encodeURIComponent(options.from));
+          }
+          if (options.to) {
+            params.push("to=" + encodeURIComponent(options.to));
+          }
+          if (options.group) {
+            params.push("group_period=" + encodeURIComponent(options.group));
+          } else {
+            params.push("group_period=month");
+          }
+          params.push("sum_tech=true");
+          params.push("sort=year_desc,month_desc");
+          params.push("limit=1");
+
+          var endpoint = "/data?" + params.join("&");
+          var xhr = new XMLHttpRequest();
+          xhr.open("GET", endpoint, true);
+          xhr.onreadystatechange = function () {
+            if (xhr.readyState !== 4) {
+              return;
+            }
+            if (xhr.status < 200 || xhr.status >= 300) {
+              marketDeltaEl.textContent = "-";
+              marketNoteEl.textContent = "Market request failed";
+              return;
+            }
+
+            var data;
+            try {
+              data = JSON.parse(xhr.responseText);
+            } catch (err) {
+              marketDeltaEl.textContent = "-";
+              marketNoteEl.textContent = "Market JSON error";
+              return;
+            }
+
+            if (!Array.isArray(data) || data.length === 0) {
+              marketDeltaEl.textContent = "-";
+              marketNoteEl.textContent = "Market data empty";
+              return;
+            }
+
+            var marketRow = getLatestRow(data);
+            var marketPrice = marketRow ? toNumber(marketRow.weighted_avg_price_eur_per_mwh) : null;
+            var latestPrice = toNumber(latestRow.weighted_avg_price_eur_per_mwh);
+            if (marketPrice === null || latestPrice === null) {
+              marketDeltaEl.textContent = "-";
+              marketNoteEl.textContent = "Market price missing";
+              return;
+            }
+
+            var delta = latestPrice - marketPrice;
+            var deltaLabel = delta > 0 ? "+" + formatNumber(delta) : formatNumber(delta);
+            marketDeltaEl.textContent = deltaLabel;
+            marketNoteEl.textContent = "Latest vs market";
+          };
+          xhr.onerror = function () {
+            marketDeltaEl.textContent = "-";
+            marketNoteEl.textContent = "Market request failed";
+          };
+          xhr.send();
+        }
+
         function loadData() {
           setStatus("Loading...");
           clearTable();
           rowCount.textContent = "Loading data...";
           queryLabel.textContent = "";
+          resetSummaries();
 
           var queryInfo = buildQuery();
           if (queryInfo.error) {
@@ -407,6 +795,7 @@
             setStatus("");
             rowCount.textContent = "Rows: " + data.length;
             renderRows(data);
+            updateSummary(data, queryInfo.options);
           };
           xhr.onerror = function () {
             setStatus("Network error.");
