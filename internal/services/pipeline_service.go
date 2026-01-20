@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"path"
+	"strings"
 
 	"github.com/google/uuid"
 )
@@ -15,6 +18,7 @@ type PipelineService struct {
 	openAiService OpenAiExtractor
 	zipService    ZipDownloader
 	xlsxService   ZipProcessor
+	fileService   ProcessedFileTracker
 	csvService    AuctionParser
 	dataService   DataStorer
 	logService    LogWriter
@@ -26,6 +30,7 @@ func NewPipelineService(
 	openAiService OpenAiExtractor,
 	zipService ZipDownloader,
 	xlsxService ZipProcessor,
+	fileService ProcessedFileTracker,
 	csvService AuctionParser,
 	dataService DataStorer,
 	logService LogWriter,
@@ -45,6 +50,9 @@ func NewPipelineService(
 	if xlsxService == nil {
 		return nil, errors.New("xlsx service is nil")
 	}
+	if fileService == nil {
+		return nil, errors.New("processed file service is nil")
+	}
 	if csvService == nil {
 		return nil, errors.New("csv service is nil")
 	}
@@ -61,6 +69,7 @@ func NewPipelineService(
 		openAiService: openAiService,
 		zipService:    zipService,
 		xlsxService:   xlsxService,
+		fileService:   fileService,
 		csvService:    csvService,
 		dataService:   dataService,
 		logService:    logService,
@@ -85,6 +94,9 @@ func (s *PipelineService) Refresh(ctx context.Context) error {
 	}
 	if s.xlsxService == nil {
 		return errors.New("xlsx service is nil")
+	}
+	if s.fileService == nil {
+		return errors.New("processed file service is nil")
 	}
 	if s.csvService == nil {
 		return errors.New("csv service is nil")
@@ -166,6 +178,29 @@ func (s *PipelineService) Refresh(ctx context.Context) error {
 			refreshErr = fmt.Errorf("openai extract returned error: %s", openAiResult.Error)
 		}
 
+		zipName, nameErr := extractZipFilename(openAiResult.Link)
+		if nameErr != nil {
+			failMsg := fmt.Sprintf("extract zip filename: %v", nameErr)
+			_ = s.logService.CreateLog(ctx, &eventID, LogActionZipProcess, LogOutcomeFail, &failMsg)
+			if refreshErr == nil {
+				refreshErr = nameErr
+			}
+		} else {
+			processed, err := s.fileService.IsProcessed(ctx, zipName)
+			if err != nil {
+				failMsg := fmt.Sprintf("check processed zip filename=%s: %v", zipName, err)
+				_ = s.logService.CreateLog(ctx, &eventID, LogActionZipProcess, LogOutcomeFail, &failMsg)
+				if refreshErr == nil {
+					refreshErr = err
+				}
+			}
+			if processed {
+				skipMsg := fmt.Sprintf("skip processed zip filename=%s", zipName)
+				_ = s.logService.CreateLog(ctx, &eventID, LogActionZipProcess, LogOutcomeSuccess, &skipMsg)
+				continue
+			}
+		}
+
 		zipResult, err := s.zipService.Download(ctx, openAiResult.Link, source.URL, &eventID)
 		if err != nil {
 			if refreshErr == nil {
@@ -186,6 +221,7 @@ func (s *PipelineService) Refresh(ctx context.Context) error {
 		successMsg := fmt.Sprintf("extracted xlsx files=%d url=%s", len(payloads), zipResult.URL)
 		_ = s.logService.CreateLog(ctx, &eventID, LogActionZipProcess, LogOutcomeSuccess, &successMsg)
 
+		storedRows := 0
 		for _, payload := range payloads {
 			parsed, err := s.csvService.ParseAuctionResults(ctx, payload, &eventID)
 			if err != nil && refreshErr == nil {
@@ -198,9 +234,39 @@ func (s *PipelineService) Refresh(ctx context.Context) error {
 				if refreshErr == nil {
 					refreshErr = fmt.Errorf("store auction results: %w", err)
 				}
+			} else {
+				storedRows += len(parsed.Rows)
+			}
+		}
+
+		if storedRows > 0 && zipName != "" {
+			if err := s.fileService.MarkProcessed(ctx, zipName); err != nil {
+				failMsg := fmt.Sprintf("mark processed zip filename=%s: %v", zipName, err)
+				_ = s.logService.CreateLog(ctx, &eventID, LogActionZipProcess, LogOutcomeFail, &failMsg)
+				if refreshErr == nil {
+					refreshErr = err
+				}
 			}
 		}
 	}
 
 	return refreshErr
+}
+
+func extractZipFilename(link string) (string, error) {
+	if strings.TrimSpace(link) == "" {
+		return "", errors.New("zip link is empty")
+	}
+	parsed, err := url.Parse(link)
+	if err != nil {
+		return "", fmt.Errorf("parse zip link: %w", err)
+	}
+	base := path.Base(parsed.Path)
+	if base == "" || base == "." || base == "/" {
+		return "", errors.New("zip filename is empty")
+	}
+	if !strings.HasSuffix(strings.ToLower(base), ".zip") {
+		return "", errors.New("zip filename missing .zip suffix")
+	}
+	return base, nil
 }

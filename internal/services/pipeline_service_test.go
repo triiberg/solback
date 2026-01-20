@@ -72,6 +72,34 @@ func (s stubZipProcessor) ExtractAuctionPayloads(ctx context.Context, zipBytes [
 	return s.payloads, nil
 }
 
+type stubProcessedFileTracker struct {
+	processed map[string]bool
+	err       error
+	marked    []string
+}
+
+func (s *stubProcessedFileTracker) IsProcessed(ctx context.Context, filename string) (bool, error) {
+	if s.err != nil {
+		return false, s.err
+	}
+	if s.processed == nil {
+		return false, nil
+	}
+	return s.processed[filename], nil
+}
+
+func (s *stubProcessedFileTracker) MarkProcessed(ctx context.Context, filename string) error {
+	if s.err != nil {
+		return s.err
+	}
+	s.marked = append(s.marked, filename)
+	if s.processed == nil {
+		s.processed = map[string]bool{}
+	}
+	s.processed[filename] = true
+	return nil
+}
+
 type stubAuctionParser struct {
 	result AuctionResults
 	err    error
@@ -117,6 +145,7 @@ func TestPipelineServiceRefresh(t *testing.T) {
 		stubOpenAiExtractor{result: OpenAiResult{Link: "https://example.com/file.zip"}},
 		stubZipDownloader{result: ZipResult{URL: "https://example.com/file.zip", StatusCode: http.StatusOK, Bytes: []byte("zip")}},
 		stubZipProcessor{payloads: []AuctionPayload{{SourceFile: "file.xlsx", Participants: 1, Headers: []string{"Region", "Technology"}, Rows: [][]string{{"Region", "Tech"}}}}},
+		&stubProcessedFileTracker{},
 		stubAuctionParser{result: AuctionResults{SourceFile: "file.xlsx", Participants: 1, Rows: []AuctionRow{{Year: 2025, Month: 8, Region: "Region", Technology: "Tech", TotalVolumeAuctioned: 1, TotalVolumeSold: 1, WeightedAvgPriceEurPerMwh: 1}}}},
 		dataStorer,
 		logWriter,
@@ -167,6 +196,7 @@ func TestPipelineServiceRefreshSourceError(t *testing.T) {
 		stubOpenAiExtractor{},
 		stubZipDownloader{},
 		stubZipProcessor{},
+		&stubProcessedFileTracker{},
 		stubAuctionParser{},
 		&stubDataStorer{},
 		logWriter,
@@ -204,6 +234,7 @@ func TestPipelineServiceRefreshStoresPartialCsvResults(t *testing.T) {
 		stubOpenAiExtractor{result: OpenAiResult{Link: "https://example.com/file.zip"}},
 		stubZipDownloader{result: ZipResult{URL: "https://example.com/file.zip", StatusCode: http.StatusOK, Bytes: []byte("zip")}},
 		stubZipProcessor{payloads: []AuctionPayload{{SourceFile: "file.xlsx", Participants: 1, Headers: []string{"Region", "Technology"}, Rows: [][]string{{"Region", "Tech"}}}}},
+		&stubProcessedFileTracker{},
 		stubAuctionParser{
 			result: AuctionResults{SourceFile: "file.xlsx", Participants: 1, Rows: []AuctionRow{{Year: 2025, Month: 8, Region: "Region", Technology: "Tech", TotalVolumeAuctioned: 1, TotalVolumeSold: 1, WeightedAvgPriceEurPerMwh: 1}}},
 			err:    errors.New("partial parse failure"),
@@ -220,5 +251,45 @@ func TestPipelineServiceRefreshStoresPartialCsvResults(t *testing.T) {
 	}
 	if dataStorer.count == 0 {
 		t.Fatalf("expected data rows to be stored")
+	}
+}
+
+func TestPipelineServiceRefreshSkipsProcessedZip(t *testing.T) {
+	sources := []models.Source{
+		{URL: "https://example.com/ok"},
+	}
+	htmlFetcher := stubHtmlFetcher{
+		results: map[string]HtmlResult{
+			"https://example.com/ok": {URL: "https://example.com/ok", StatusCode: http.StatusOK, Body: "<table></table>"},
+		},
+	}
+
+	processed := &stubProcessedFileTracker{processed: map[string]bool{"file.zip": true}}
+	logWriter := &stubLogWriter{}
+	dataStorer := &stubDataStorer{}
+	zipDownloader := stubZipDownloader{result: ZipResult{URL: "https://example.com/file.zip", StatusCode: http.StatusOK, Bytes: []byte("zip")}}
+	service, err := NewPipelineService(
+		stubSourceService{sources: sources},
+		htmlFetcher,
+		stubOpenAiExtractor{result: OpenAiResult{Link: "https://example.com/file.zip"}},
+		zipDownloader,
+		stubZipProcessor{payloads: []AuctionPayload{{SourceFile: "file.xlsx", Participants: 1, Headers: []string{"Region", "Technology"}, Rows: [][]string{{"Region", "Tech"}}}}},
+		processed,
+		stubAuctionParser{result: AuctionResults{SourceFile: "file.xlsx", Participants: 1, Rows: []AuctionRow{{Year: 2025, Month: 8, Region: "Region", Technology: "Tech", TotalVolumeAuctioned: 1, TotalVolumeSold: 1, WeightedAvgPriceEurPerMwh: 1}}}},
+		dataStorer,
+		logWriter,
+	)
+	if err != nil {
+		t.Fatalf("NewPipelineService: %v", err)
+	}
+
+	if err := service.Refresh(context.Background()); err != nil {
+		t.Fatalf("Refresh: %v", err)
+	}
+	if dataStorer.count != 0 {
+		t.Fatalf("expected no data rows stored")
+	}
+	if len(processed.marked) != 0 {
+		t.Fatalf("expected no new processed marks")
 	}
 }

@@ -30,6 +30,11 @@ type ZipProcessor interface {
 	ExtractAuctionPayloads(ctx context.Context, zipBytes []byte) ([]AuctionPayload, error)
 }
 
+type ProcessedFileTracker interface {
+	IsProcessed(ctx context.Context, filename string) (bool, error)
+	MarkProcessed(ctx context.Context, filename string) error
+}
+
 type AuctionParser interface {
 	ParseAuctionResults(ctx context.Context, payload AuctionPayload, eventID *string) (AuctionResults, error)
 }

@@ -39,7 +39,7 @@
 
 - logs model must have event identifier that is given by PipelineService when starting the process. This will allow me to filter out log events per session. **Status:** DONE_AND_LOCKED
 - PipelineService when triggered by cron or refresh endpoint, generates new eventId and assignes it to log records that are created in this session of refreshing the data. **Status:** DONE_AND_LOCKED
-- logs endpoint must allow filter eventId. **Status:** IN_PROGRESS
+- logs endpoint must allow filter eventId. **Status:** DONE_AND_LOCKED
 - when creating log record of OPENAPI_CALL_CVS_PARSE, attache the filename that is currently parsed. **Status:** DONE_AND_LOCKED
 - log service must have truncate logs function. **Status:** DONE_AND_LOCKED
 - log controller must have DELETE /logs endpoint that calls truncate logs function from logs service. **Status:** DONE_AND_LOCKED
@@ -49,8 +49,9 @@
 
 - no reason to pass the same CSV to OpenAI if it failed: the input is the same and fail next time. One attempt only.   **Status:** DONE_AND_LOCKED
 
-- add function to the CSV service, that extracts year and month from filename.  **Status:** IN_PROGRESS
-- change the schema sent to OpenAI when parsing the CSV: do not require year and month properties to be added by OpenAI. Add year and month when the payload comes back.  **Status:** IN_PROGRESS
+- add function to the CSV service, that extracts year and month from filename.  **Status:** DONE_AND_LOCKED
+- change the schema sent to OpenAI when parsing the CSV: do not require year and month properties to be added by OpenAI. Add year and month when the payload comes back.  **Status:** DONE_AND_LOCKED
+
 
 ## Components 
 
@@ -366,21 +367,33 @@ Schema:
 ### 7. Component of GET /data controller and DELETE /data controller. **Status:** DONE_AND_LOCKED
 
 #### 1. Objectives
-- see Guarantee of Origin data, allow frontend to consume it
-- delete data (in case of fresh start)
+- endpoint to retrieve data
+- andpoint to delete data
+
+#### 2. Expected results
+- can GET /data with filters: period and technology
+- can DELETE /data (truncates everything)
+
+### 8. Create table to avoid duplications: one file can be processed only once **Status:** IN_PROGRESS
+
+#### 1. Objectives
+- no ZIP file must be parsed twice.
+- no duplicate auction results in the DB.
 
 #### 2. Coding
-- add getData function with filters to DataService: period filter, technology filter. If filter not applied all periods and all technologies
-- add deleteData function to remove all data, write an entry into the log so I can check if delete is triggered
-- data controller must have 2 endpoints: GET /data (with period and tech filter), DELETE /data that just calls deleteData
+- create model and db table to store filenames of ZIP files.
+- create function to store ZIP filenames.
+- create function into html service to check if this particular file is already processed.
+- if file already downloaded and processed, log the fact and exit.
 
-#### 3. Expected Result
-1. Controllers are added
-2. DataService has methods that are called from controller
-3. Both controllers and service is covered with tests
-4. Everthing is able to run and I can put it into docker and run there
-
-
+#### 3. Expected Results
+- no duplicate values in the auction results table / output.
+- no wasting time of processing ZIP files that are already downloaded and processed.
+- keeping record of files that are already processed.
+- old tests must be fixed
+- new functionality must be covered with tests
+- project can be started up and built into Docker container
+- all tests were passed
 
 # Technical details and Architecture
 - High-level overview: Project is built up out of components. We build one by one, test and verify then LOCK

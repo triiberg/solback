@@ -72,6 +72,11 @@ func main() {
 		log.Fatalf("create openai csv service: %v", err)
 	}
 
+	processedFileService, err := services.NewProcessedFileService(db)
+	if err != nil {
+		log.Fatalf("create processed file service: %v", err)
+	}
+
 	dataService, err := services.NewDataService(db, logService)
 	if err != nil {
 		log.Fatalf("create data service: %v", err)
@@ -83,6 +88,7 @@ func main() {
 		openAiService,
 		zipService,
 		xlsxService,
+		processedFileService,
 		csvService,
 		dataService,
 		logService,

@@ -34,7 +34,7 @@ func Migrate(db *gorm.DB) error {
 		return errors.New("db is nil")
 	}
 
-	if err := db.AutoMigrate(&models.Source{}, &models.Log{}, &models.AuctionResult{}); err != nil {
+	if err := db.AutoMigrate(&models.Source{}, &models.Log{}, &models.AuctionResult{}, &models.ProcessedFile{}); err != nil {
 		return fmt.Errorf("auto migrate: %w", err)
 	}
 
