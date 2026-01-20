@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"testing"
+	"time"
 
 	"solback/internal/models"
 
@@ -31,6 +32,15 @@ func createAuctionResultsTable(t *testing.T, db *gorm.DB) {
 	);`
 	if err := db.Exec(query).Error; err != nil {
 		t.Fatalf("create auction_results table: %v", err)
+	}
+}
+
+func createProcessedFilesTableForData(t *testing.T, db *gorm.DB) {
+	t.Helper()
+
+	query := "CREATE TABLE processed_files (id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))), zip_filename TEXT NOT NULL UNIQUE, processed_at DATETIME NOT NULL)"
+	if err := db.Exec(query).Error; err != nil {
+		t.Fatalf("create processed_files table: %v", err)
 	}
 }
 
@@ -617,6 +627,7 @@ func TestDataServiceGetDataSumTechDefaultsToMonth(t *testing.T) {
 func TestDataServiceDeleteData(t *testing.T) {
 	db := openTestDB(t)
 	createAuctionResultsTable(t, db)
+	createProcessedFilesTableForData(t, db)
 
 	row := models.AuctionResult{
 		ID:                        "row-1",
@@ -633,6 +644,14 @@ func TestDataServiceDeleteData(t *testing.T) {
 	}
 	if err := db.Create(&row).Error; err != nil {
 		t.Fatalf("insert row: %v", err)
+	}
+	processed := models.ProcessedFile{
+		ID:          "file-1",
+		ZipFilename: "file.zip",
+		ProcessedAt: time.Now().UTC(),
+	}
+	if err := db.Create(&processed).Error; err != nil {
+		t.Fatalf("insert processed file: %v", err)
 	}
 
 	logWriter := &stubLogWriter{}
@@ -655,6 +674,14 @@ func TestDataServiceDeleteData(t *testing.T) {
 	}
 	if len(remaining) != 0 {
 		t.Fatalf("remaining rows = %d, want 0", len(remaining))
+	}
+
+	var remainingFiles []models.ProcessedFile
+	if err := db.Find(&remainingFiles).Error; err != nil {
+		t.Fatalf("select processed files: %v", err)
+	}
+	if len(remainingFiles) != 0 {
+		t.Fatalf("remaining processed files = %d, want 0", len(remainingFiles))
 	}
 	if len(logWriter.entries) == 0 {
 		t.Fatalf("expected log entries")

@@ -3,16 +3,16 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Solback Data Check</title>
+    <title>Solback Overview</title>
     <style>
       :root {
-        --ink: #1d1b1a;
-        --muted: #5c5a57;
-        --surface: #fffaf1;
+        --ink: #1b1a17;
+        --muted: #5a534a;
         --accent: #1d6a5a;
         --accent-2: #c24c2d;
+        --surface: #fffaf2;
         --line: #e3dccb;
-        --shadow: 0 16px 40px rgba(34, 31, 30, 0.12);
+        --shadow: 0 18px 45px rgba(34, 31, 30, 0.12);
       }
 
       * {
@@ -21,13 +21,13 @@
 
       body {
         margin: 0;
+        font-family: "Garamond", "Palatino Linotype", "Book Antiqua", serif;
         color: var(--ink);
-        font-family: "Palatino Linotype", "Book Antiqua", Palatino, serif;
-        background: radial-gradient(circle at 10% 20%, #f2efe6 0%, transparent 40%),
-          radial-gradient(circle at 90% 0%, #e7f0f4 0%, transparent 50%),
+        background: radial-gradient(circle at 10% 20%, #f2efe6 0%, transparent 45%),
+          radial-gradient(circle at 90% 0%, #e7f0f4 0%, transparent 55%),
           linear-gradient(135deg, #f8f1e6 0%, #f2f7f3 45%, #f8ece6 100%);
         min-height: 100vh;
-        padding: 32px 16px 48px;
+        padding: 32px 16px 56px;
       }
 
       .page {
@@ -38,12 +38,12 @@
       }
 
       header {
+        position: relative;
         background: var(--surface);
         border: 1px solid var(--line);
-        padding: 28px;
         border-radius: 18px;
+        padding: 28px;
         box-shadow: var(--shadow);
-        position: relative;
         overflow: hidden;
         animation: float-in 600ms ease-out;
       }
@@ -51,186 +51,120 @@
       header::after {
         content: "";
         position: absolute;
-        inset: -30% 40% auto -20%;
-        height: 160px;
-        background: linear-gradient(120deg, rgba(29, 106, 90, 0.12), rgba(194, 76, 45, 0.12));
+        inset: -40% 40% auto -20%;
+        height: 180px;
+        background: linear-gradient(120deg, rgba(29, 106, 90, 0.16), rgba(194, 76, 45, 0.16));
         transform: rotate(-2deg);
       }
 
       h1 {
-        margin: 0 0 8px;
+        margin: 0 0 10px;
         font-family: "Trebuchet MS", "Lucida Grande", "Lucida Sans Unicode", sans-serif;
-        font-size: clamp(26px, 3vw, 34px);
-        letter-spacing: 0.5px;
+        font-size: clamp(28px, 4vw, 40px);
+        letter-spacing: 0.6px;
       }
 
-      p {
+      .lead {
         margin: 0;
         color: var(--muted);
-        font-size: 15px;
-        line-height: 1.5;
+        font-size: 16px;
+        line-height: 1.6;
+        max-width: 720px;
       }
 
-      .controls {
-        background: var(--surface);
-        border: 1px solid var(--line);
-        padding: 20px 24px;
-        border-radius: 16px;
-        box-shadow: var(--shadow);
+      .grid {
         display: grid;
-        gap: 16px;
-        animation: float-in 700ms ease-out;
-      }
-
-      .control-grid {
-        display: grid;
-        gap: 16px;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      }
-
-      label {
-        display: block;
-        font-size: 13px;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        color: var(--muted);
-        margin-bottom: 6px;
-      }
-
-      input,
-      select {
-        width: 100%;
-        padding: 10px 12px;
-        font-size: 15px;
-        border-radius: 10px;
-        border: 1px solid var(--line);
-        background: #ffffff;
-        color: var(--ink);
-        font-family: "Trebuchet MS", "Lucida Grande", "Lucida Sans Unicode", sans-serif;
-      }
-
-      .toggle {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin-top: 4px;
-      }
-
-      .toggle input {
-        width: auto;
-        transform: scale(1.1);
-      }
-
-      .actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 12px;
-        align-items: center;
-      }
-
-      button {
-        border: none;
-        padding: 10px 18px;
-        border-radius: 999px;
-        background: var(--accent);
-        color: #fff;
-        font-size: 15px;
-        font-family: "Trebuchet MS", "Lucida Grande", "Lucida Sans Unicode", sans-serif;
-        cursor: pointer;
-        transition: transform 150ms ease, box-shadow 150ms ease;
-        box-shadow: 0 10px 18px rgba(29, 106, 90, 0.2);
-      }
-
-      button:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 12px 24px rgba(29, 106, 90, 0.25);
-      }
-
-      .status {
-        color: var(--accent-2);
-        font-size: 14px;
-      }
-
-      .results {
-        background: var(--surface);
-        border: 1px solid var(--line);
-        border-radius: 18px;
-        padding: 16px;
-        box-shadow: var(--shadow);
-        animation: float-in 800ms ease-out;
-      }
-
-      .summary {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 16px;
-        align-items: center;
-        margin-bottom: 12px;
-        color: var(--muted);
-        font-size: 14px;
-      }
-
-      .summary-cards {
-        display: grid;
-        gap: 16px;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-        margin-bottom: 16px;
+        gap: 20px;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
       }
 
       .card {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 20px 22px;
+        box-shadow: 0 12px 28px rgba(34, 31, 30, 0.08);
+        animation: float-in 700ms ease-out;
+      }
+
+      .card h2 {
+        font-family: "Trebuchet MS", "Lucida Grande", "Lucida Sans Unicode", sans-serif;
+        font-size: 18px;
+        margin: 0 0 10px;
+      }
+
+      .card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 1.6;
+      }
+
+      .flow {
+        display: grid;
+        gap: 12px;
+      }
+
+      .flow-step {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+        padding: 12px 14px;
         background: #fffdf6;
         border: 1px solid var(--line);
-        border-radius: 14px;
-        padding: 14px 16px;
-        box-shadow: 0 8px 18px rgba(34, 31, 30, 0.08);
+        border-radius: 12px;
       }
 
-      .card-label {
-        font-size: 12px;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        color: var(--muted);
-      }
-
-      .card-value {
-        font-size: 20px;
-        font-weight: 600;
-        margin-top: 6px;
-      }
-
-      .card-sub {
-        font-size: 13px;
-        color: var(--muted);
-        margin-top: 4px;
-      }
-
-      table {
-        width: 100%;
-        border-collapse: collapse;
+      .flow-step span {
+        display: inline-flex;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: var(--accent);
+        color: #fff;
+        align-items: center;
+        justify-content: center;
         font-size: 14px;
-      }
-
-      th,
-      td {
-        text-align: left;
-        padding: 10px;
-        border-bottom: 1px solid var(--line);
-      }
-
-      th {
         font-family: "Trebuchet MS", "Lucida Grande", "Lucida Sans Unicode", sans-serif;
+      }
+
+      .flow-step p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .endpoints {
+        display: grid;
+        gap: 10px;
+        font-size: 15px;
+      }
+
+      .endpoints a {
+        color: var(--accent);
+        text-decoration: none;
+        font-weight: 600;
+      }
+
+      .endpoints a:hover {
+        text-decoration: underline;
+      }
+
+      .pill {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: rgba(29, 106, 90, 0.12);
+        color: var(--accent);
         font-size: 12px;
         text-transform: uppercase;
         letter-spacing: 0.08em;
+      }
+
+      footer {
+        text-align: center;
         color: var(--muted);
-      }
-
-      tbody tr {
-        animation: fade-in 300ms ease;
-      }
-
-      tbody tr:nth-child(even) {
-        background: rgba(29, 106, 90, 0.04);
+        font-size: 14px;
       }
 
       @keyframes float-in {
@@ -243,569 +177,80 @@
           transform: translateY(0);
         }
       }
-
-      @keyframes fade-in {
-        from {
-          opacity: 0;
-        }
-        to {
-          opacity: 1;
-        }
-      }
     </style>
   </head>
   <body>
     <div class="page">
       <header>
-        <h1>Data Check Console</h1>
-        <p>Quickly verify the output of <strong>/data</strong> with grouping and sum options.</p>
+        <span class="pill">Guarantees of Origin</span>
+        <h1>Solback Data Pipeline</h1>
+        <p class="lead">
+          This service collects European energy certificate auction results, standardizes them, and exposes clean
+          analytics-ready data for market insights. Built to support analysts working with renewable energy producers.
+        </p>
       </header>
 
-      <section class="controls">
-        <div class="control-grid">
-          <div>
-            <label for="periodStart">Period start year</label>
-            <input id="periodStart" type="number" min="2000" max="2100" placeholder="2024" />
-          </div>
-          <div>
-            <label for="periodEnd">Period end year</label>
-            <input id="periodEnd" type="number" min="2000" max="2100" placeholder="2025" />
-          </div>
-          <div>
-            <label for="fromMonth">From (YYYY-MM)</label>
-            <input id="fromMonth" type="text" placeholder="2024-01" />
-          </div>
-          <div>
-            <label for="toMonth">To (YYYY-MM)</label>
-            <input id="toMonth" type="text" placeholder="2025-12" />
-          </div>
-          <div>
-            <label for="groupPeriod">Group by</label>
-            <select id="groupPeriod">
-              <option value="">None</option>
-              <option value="year">Year</option>
-              <option value="month">Year + Month</option>
-            </select>
-          </div>
-          <div>
-            <label for="techIn">Technologies (comma-separated)</label>
-            <input id="techIn" type="text" placeholder="Solar, Hydro, Wind" />
-          </div>
-          <div>
-            <label>Sum technology</label>
-            <div class="toggle">
-              <input id="sumTech" type="checkbox" />
-              <span>Combine all technologies</span>
-            </div>
-          </div>
-          <div>
-            <label>Latest only</label>
-            <div class="toggle">
-              <input id="latestOnly" type="checkbox" />
-              <span>Sort desc + limit 1</span>
-            </div>
-          </div>
+      <section class="grid">
+        <div class="card">
+          <h2>What it does</h2>
+          <p>
+            Solback pulls the latest auction ZIP files, extracts structured data, and stores normalized results for
+            fast, filtered access. It helps answer questions about price trends, technology performance, and market
+            direction.
+          </p>
         </div>
-        <div class="actions">
-          <button id="loadBtn" type="button">Load data</button>
-          <span class="status" id="status"></span>
+        <div class="card">
+          <h2>Technology</h2>
+          <p>
+            Go + Gin for the API, GORM for persistence, PostgreSQL for storage, and a pipeline service to orchestrate
+            ingestion. OpenAI assists with HTML and spreadsheet parsing where needed.
+          </p>
+        </div>
+        <div class="card">
+          <h2>Why it matters</h2>
+          <p>
+            Renewable producers can benchmark their latest price against market averages, compare across technologies,
+            and understand long-term trends to improve bidding strategies.
+          </p>
         </div>
       </section>
 
-      <section class="results">
-        <div class="summary-cards">
-          <div class="card">
-            <div class="card-label">Latest price</div>
-            <div class="card-value" id="latestPrice">-</div>
-            <div class="card-sub" id="latestPeriod"></div>
+      <section class="card">
+        <h2>Data flow</h2>
+        <div class="flow">
+          <div class="flow-step">
+            <span>1</span>
+            <p>Load source URLs from the database and fetch HTML pages.</p>
           </div>
-          <div class="card">
-            <div class="card-label">12-month avg</div>
-            <div class="card-value" id="avg12Price">-</div>
-            <div class="card-sub" id="avg12Note">Requires monthly data</div>
+          <div class="flow-step">
+            <span>2</span>
+            <p>Extract the newest ZIP link, download the file, and unpack XLSX data in memory.</p>
           </div>
-          <div class="card">
-            <div class="card-label">YoY change</div>
-            <div class="card-value" id="yoyChange">-</div>
-            <div class="card-sub" id="yoyNote">Latest year vs previous</div>
+          <div class="flow-step">
+            <span>3</span>
+            <p>Normalize auction rows, compute aggregates, and store results in Postgres.</p>
           </div>
-          <div class="card">
-            <div class="card-label">Vs market</div>
-            <div class="card-value" id="marketDelta">-</div>
-            <div class="card-sub" id="marketNote">Tech vs aggregated market</div>
+          <div class="flow-step">
+            <span>4</span>
+            <p>Expose the data through GET endpoints for filtering, grouping, and analysis.</p>
           </div>
-        </div>
-        <div class="summary">
-          <div id="rowCount">No data loaded.</div>
-          <div id="queryLabel"></div>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Year</th>
-                <th>Month</th>
-                <th>Technology</th>
-                <th>Total volume auctioned</th>
-                <th>Total volume sold</th>
-                <th>Avg price (EUR/MWh)</th>
-              </tr>
-            </thead>
-            <tbody id="resultsBody"></tbody>
-          </table>
         </div>
       </section>
+
+      <section class="card">
+        <h2>GET endpoints</h2>
+        <div class="endpoints">
+          <div><a href="/health" target="_blank" rel="noreferrer">GET /health</a> — service status</div>
+          <div><a href="/sources" target="_blank" rel="noreferrer">GET /sources</a> — configured data sources</div>
+          <div><a href="/logs" target="_blank" rel="noreferrer">GET /logs</a> — ingestion logs</div>
+          <div><a href="/data" target="_blank" rel="noreferrer">GET /data</a> — auction data with filters</div>
+          <div><a href="/refresh" target="_blank" rel="noreferrer">GET /refresh</a> — trigger a refresh run</div>
+        </div>
+      </section>
+
+      <footer>
+        Coded by Codex, supervised by T.R.
+      </footer>
     </div>
-
-    <script>
-      (function () {
-        var loadBtn = document.getElementById("loadBtn");
-        var statusEl = document.getElementById("status");
-        var resultsBody = document.getElementById("resultsBody");
-        var rowCount = document.getElementById("rowCount");
-        var queryLabel = document.getElementById("queryLabel");
-        var latestPriceEl = document.getElementById("latestPrice");
-        var latestPeriodEl = document.getElementById("latestPeriod");
-        var avg12PriceEl = document.getElementById("avg12Price");
-        var avg12NoteEl = document.getElementById("avg12Note");
-        var yoyChangeEl = document.getElementById("yoyChange");
-        var yoyNoteEl = document.getElementById("yoyNote");
-        var marketDeltaEl = document.getElementById("marketDelta");
-        var marketNoteEl = document.getElementById("marketNote");
-
-        function clearTable() {
-          while (resultsBody.firstChild) {
-            resultsBody.removeChild(resultsBody.firstChild);
-          }
-        }
-
-        function formatNumber(value) {
-          if (value === null || value === undefined || value === "") {
-            return "-";
-          }
-          var num = typeof value === "number" ? value : Number(value);
-          if (!Number.isFinite(num)) {
-            return String(value);
-          }
-          if (Math.abs(num % 1) < 1e-9) {
-            return String(num);
-          }
-          return num.toFixed(3);
-        }
-
-        function setStatus(message) {
-          statusEl.textContent = message;
-        }
-
-        function resetSummaries() {
-          latestPriceEl.textContent = "-";
-          latestPeriodEl.textContent = "";
-          avg12PriceEl.textContent = "-";
-          avg12NoteEl.textContent = "Requires monthly data";
-          yoyChangeEl.textContent = "-";
-          yoyNoteEl.textContent = "Latest year vs previous";
-          marketDeltaEl.textContent = "-";
-          marketNoteEl.textContent = "Tech vs aggregated market";
-        }
-
-        function parseYearMonthInput(value) {
-          var match = value.match(/^(\d{4})-(\d{2})$/);
-          if (!match) {
-            return null;
-          }
-          var year = Number(match[1]);
-          var month = Number(match[2]);
-          if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) {
-            return null;
-          }
-          return { year: year, month: month };
-        }
-
-        function extractTechList(raw) {
-          if (!raw) {
-            return [];
-          }
-          return raw
-            .split(",")
-            .map(function (item) {
-              return item.trim();
-            })
-            .filter(function (item) {
-              return item.length > 0;
-            });
-        }
-
-        function buildQuery() {
-          var params = [];
-          var start = document.getElementById("periodStart").value.trim();
-          var end = document.getElementById("periodEnd").value.trim();
-          var fromMonth = document.getElementById("fromMonth").value.trim();
-          var toMonth = document.getElementById("toMonth").value.trim();
-          var group = document.getElementById("groupPeriod").value;
-          var sumTech = document.getElementById("sumTech").checked;
-          var techInRaw = document.getElementById("techIn").value.trim();
-          var latestOnly = document.getElementById("latestOnly").checked;
-
-          if (start || end) {
-            if (!start || !end) {
-              return { error: "Provide both period start and end years." };
-            }
-            params.push("period=" + encodeURIComponent(start + "-" + end));
-          }
-          if (fromMonth) {
-            var parsedFrom = parseYearMonthInput(fromMonth);
-            if (!parsedFrom) {
-              return { error: "From month must be in YYYY-MM format." };
-            }
-            params.push("from=" + encodeURIComponent(fromMonth));
-          }
-          if (toMonth) {
-            var parsedTo = parseYearMonthInput(toMonth);
-            if (!parsedTo) {
-              return { error: "To month must be in YYYY-MM format." };
-            }
-            params.push("to=" + encodeURIComponent(toMonth));
-          }
-          if (fromMonth && toMonth) {
-            var fromValue = parseYearMonthInput(fromMonth);
-            var toValue = parseYearMonthInput(toMonth);
-            if (fromValue && toValue) {
-              if (fromValue.year > toValue.year || (fromValue.year === toValue.year && fromValue.month > toValue.month)) {
-                return { error: "From month must be before To month." };
-              }
-            }
-          }
-          if (group) {
-            params.push("group_period=" + encodeURIComponent(group));
-          }
-          if (sumTech) {
-            params.push("sum_tech=true");
-          }
-          if (techInRaw) {
-            params.push("tech_in=" + encodeURIComponent(techInRaw));
-          }
-          if (latestOnly) {
-            params.push("sort=year_desc,month_desc");
-            params.push("limit=1");
-          }
-
-          return {
-            query: params.join("&"),
-            options: {
-              period: start && end ? start + "-" + end : "",
-              from: fromMonth,
-              to: toMonth,
-              group: group,
-              sumTech: sumTech,
-              techList: extractTechList(techInRaw),
-              latestOnly: latestOnly,
-            },
-          };
-        }
-
-        function renderRows(rows) {
-          clearTable();
-          rows.forEach(function (row) {
-            var tr = document.createElement("tr");
-            var cells = [
-              row.year,
-              row.month,
-              row.technology,
-              formatNumber(row.total_volume_auctioned),
-              formatNumber(row.total_volume_sold),
-              formatNumber(row.weighted_avg_price_eur_per_mwh),
-            ];
-            cells.forEach(function (value) {
-              var td = document.createElement("td");
-              td.textContent = value === undefined || value === "" ? "-" : value;
-              tr.appendChild(td);
-            });
-            resultsBody.appendChild(tr);
-          });
-        }
-
-        function toNumber(value) {
-          var num = Number(value);
-          if (!Number.isFinite(num)) {
-            return null;
-          }
-          return num;
-        }
-
-        function compareRows(a, b) {
-          var yearDiff = Number(a.year) - Number(b.year);
-          if (yearDiff !== 0) {
-            return yearDiff;
-          }
-          var monthA = Number(a.month || 0);
-          var monthB = Number(b.month || 0);
-          return monthA - monthB;
-        }
-
-        function getLatestRow(rows) {
-          if (!rows.length) {
-            return null;
-          }
-          return rows.reduce(function (latest, row) {
-            if (!latest) {
-              return row;
-            }
-            return compareRows(latest, row) < 0 ? row : latest;
-          }, null);
-        }
-
-        function formatPeriod(row) {
-          if (!row) {
-            return "";
-          }
-          var year = row.year;
-          if (!row.month || Number(row.month) === 0) {
-            return String(year);
-          }
-          var month = String(row.month).padStart(2, "0");
-          return year + "-" + month;
-        }
-
-        function compute12MonthAverage(rows) {
-          var monthlyRows = rows.filter(function (row) {
-            return Number(row.month) > 0;
-          });
-          if (monthlyRows.length < 12) {
-            return null;
-          }
-          var sorted = monthlyRows.slice().sort(compareRows);
-          var slice = sorted.slice(Math.max(sorted.length - 12, 0));
-          var total = 0;
-          var count = 0;
-          slice.forEach(function (row) {
-            var price = toNumber(row.weighted_avg_price_eur_per_mwh);
-            if (price !== null) {
-              total += price;
-              count += 1;
-            }
-          });
-          if (count === 0) {
-            return null;
-          }
-          return total / count;
-        }
-
-        function computeYearAverages(rows) {
-          var totals = {};
-          rows.forEach(function (row) {
-            var year = Number(row.year);
-            var price = toNumber(row.weighted_avg_price_eur_per_mwh);
-            if (!Number.isFinite(year) || price === null) {
-              return;
-            }
-            if (!totals[year]) {
-              totals[year] = { sum: 0, count: 0 };
-            }
-            totals[year].sum += price;
-            totals[year].count += 1;
-          });
-          return totals;
-        }
-
-        function formatPercent(value) {
-          if (value === null) {
-            return "-";
-          }
-          var sign = value > 0 ? "+" : "";
-          return sign + value.toFixed(1) + "%";
-        }
-
-        function updateSummary(rows, options) {
-          resetSummaries();
-          if (!rows.length) {
-            return;
-          }
-
-          var latestRow = getLatestRow(rows);
-          var latestPrice = latestRow ? toNumber(latestRow.weighted_avg_price_eur_per_mwh) : null;
-          if (latestPrice !== null) {
-            latestPriceEl.textContent = formatNumber(latestPrice);
-            latestPeriodEl.textContent = formatPeriod(latestRow);
-          }
-
-          var avg12 = compute12MonthAverage(rows);
-          if (avg12 !== null) {
-            avg12PriceEl.textContent = formatNumber(avg12);
-            avg12NoteEl.textContent = "Avg of last 12 months";
-          }
-
-          var yearTotals = computeYearAverages(rows);
-          var years = Object.keys(yearTotals)
-            .map(function (value) {
-              return Number(value);
-            })
-            .filter(function (value) {
-              return Number.isFinite(value);
-            })
-            .sort(function (a, b) {
-              return a - b;
-            });
-          if (years.length >= 2) {
-            var latestYear = years[years.length - 1];
-            var prevYear = years[years.length - 2];
-            var latestAvg = yearTotals[latestYear].sum / yearTotals[latestYear].count;
-            var prevAvg = yearTotals[prevYear].sum / yearTotals[prevYear].count;
-            if (prevAvg !== 0) {
-              var change = ((latestAvg - prevAvg) / prevAvg) * 100;
-              yoyChangeEl.textContent = formatPercent(change);
-              yoyNoteEl.textContent = latestYear + " vs " + prevYear;
-            }
-          }
-
-          fetchMarketDelta(latestRow, options);
-        }
-
-        function fetchMarketDelta(latestRow, options) {
-          if (!latestRow || !options || options.sumTech) {
-            marketDeltaEl.textContent = "-";
-            marketNoteEl.textContent = "Tech vs aggregated market";
-            return;
-          }
-
-          var techList = options.techList || [];
-          if (techList.length !== 1) {
-            marketDeltaEl.textContent = "-";
-            marketNoteEl.textContent = "Select one technology";
-            return;
-          }
-
-          marketDeltaEl.textContent = "Loading...";
-          marketNoteEl.textContent = "Comparing to market";
-
-          var params = [];
-          if (options.period) {
-            params.push("period=" + encodeURIComponent(options.period));
-          }
-          if (options.from) {
-            params.push("from=" + encodeURIComponent(options.from));
-          }
-          if (options.to) {
-            params.push("to=" + encodeURIComponent(options.to));
-          }
-          if (options.group) {
-            params.push("group_period=" + encodeURIComponent(options.group));
-          } else {
-            params.push("group_period=month");
-          }
-          params.push("sum_tech=true");
-          params.push("sort=year_desc,month_desc");
-          params.push("limit=1");
-
-          var endpoint = "/data?" + params.join("&");
-          var xhr = new XMLHttpRequest();
-          xhr.open("GET", endpoint, true);
-          xhr.onreadystatechange = function () {
-            if (xhr.readyState !== 4) {
-              return;
-            }
-            if (xhr.status < 200 || xhr.status >= 300) {
-              marketDeltaEl.textContent = "-";
-              marketNoteEl.textContent = "Market request failed";
-              return;
-            }
-
-            var data;
-            try {
-              data = JSON.parse(xhr.responseText);
-            } catch (err) {
-              marketDeltaEl.textContent = "-";
-              marketNoteEl.textContent = "Market JSON error";
-              return;
-            }
-
-            if (!Array.isArray(data) || data.length === 0) {
-              marketDeltaEl.textContent = "-";
-              marketNoteEl.textContent = "Market data empty";
-              return;
-            }
-
-            var marketRow = getLatestRow(data);
-            var marketPrice = marketRow ? toNumber(marketRow.weighted_avg_price_eur_per_mwh) : null;
-            var latestPrice = toNumber(latestRow.weighted_avg_price_eur_per_mwh);
-            if (marketPrice === null || latestPrice === null) {
-              marketDeltaEl.textContent = "-";
-              marketNoteEl.textContent = "Market price missing";
-              return;
-            }
-
-            var delta = latestPrice - marketPrice;
-            var deltaLabel = delta > 0 ? "+" + formatNumber(delta) : formatNumber(delta);
-            marketDeltaEl.textContent = deltaLabel;
-            marketNoteEl.textContent = "Latest vs market";
-          };
-          xhr.onerror = function () {
-            marketDeltaEl.textContent = "-";
-            marketNoteEl.textContent = "Market request failed";
-          };
-          xhr.send();
-        }
-
-        function loadData() {
-          setStatus("Loading...");
-          clearTable();
-          rowCount.textContent = "Loading data...";
-          queryLabel.textContent = "";
-          resetSummaries();
-
-          var queryInfo = buildQuery();
-          if (queryInfo.error) {
-            setStatus(queryInfo.error);
-            rowCount.textContent = "No data loaded.";
-            return;
-          }
-
-          var endpoint = "/data";
-          if (queryInfo.query) {
-            endpoint += "?" + queryInfo.query;
-          }
-          queryLabel.textContent = endpoint;
-
-          var xhr = new XMLHttpRequest();
-          xhr.open("GET", endpoint, true);
-          xhr.onreadystatechange = function () {
-            if (xhr.readyState !== 4) {
-              return;
-            }
-            if (xhr.status < 200 || xhr.status >= 300) {
-              setStatus("Request failed (" + xhr.status + ").");
-              rowCount.textContent = "No data loaded.";
-              return;
-            }
-
-            var data;
-            try {
-              data = JSON.parse(xhr.responseText);
-            } catch (err) {
-              setStatus("Response is not valid JSON.");
-              rowCount.textContent = "No data loaded.";
-              return;
-            }
-
-            if (!Array.isArray(data)) {
-              setStatus("Unexpected response shape.");
-              rowCount.textContent = "No data loaded.";
-              return;
-            }
-
-            setStatus("");
-            rowCount.textContent = "Rows: " + data.length;
-            renderRows(data);
-            updateSummary(data, queryInfo.options);
-          };
-          xhr.onerror = function () {
-            setStatus("Network error.");
-            rowCount.textContent = "No data loaded.";
-          };
-          xhr.send();
-        }
-
-        loadBtn.addEventListener("click", loadData);
-      })();
-    </script>
   </body>
 </html>

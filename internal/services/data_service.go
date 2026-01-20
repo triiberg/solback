@@ -231,15 +231,29 @@ func (s *DataService) DeleteData(ctx context.Context) (int, error) {
 		return 0, errors.New("log service is nil")
 	}
 
-	result := s.db.WithContext(ctx).Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&models.AuctionResult{})
-	if result.Error != nil {
-		failMsg := fmt.Sprintf("delete data: %v", result.Error)
+	var deletedResults int64
+	var deletedFiles int64
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		results := tx.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&models.AuctionResult{})
+		if results.Error != nil {
+			return results.Error
+		}
+		deletedResults = results.RowsAffected
+
+		files := tx.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&models.ProcessedFile{})
+		if files.Error != nil {
+			return files.Error
+		}
+		deletedFiles = files.RowsAffected
+		return nil
+	}); err != nil {
+		failMsg := fmt.Sprintf("delete data: %v", err)
 		_ = s.logService.CreateLog(ctx, nil, LogActionDataStore, LogOutcomeFail, &failMsg)
-		return 0, fmt.Errorf("delete data: %w", result.Error)
+		return 0, fmt.Errorf("delete data: %w", err)
 	}
 
-	count := int(result.RowsAffected)
-	successMsg := fmt.Sprintf("deleted rows=%d", count)
+	count := int(deletedResults)
+	successMsg := fmt.Sprintf("deleted rows=%d processed_files=%d", deletedResults, deletedFiles)
 	_ = s.logService.CreateLog(ctx, nil, LogActionDataStore, LogOutcomeSuccess, &successMsg)
 
 	return count, nil
