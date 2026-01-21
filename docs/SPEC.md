@@ -28,44 +28,6 @@
 - IN_PROGRESS - actively being implemented
 - DONE_AND_LOCKED - implemented, tested, and must not be modified
 
-## Amendments
-- add config.json (store default source data URL: "https://www.eex.com/en/markets/energy-certificates/french-auctions-power" and comment "Default source") **Status:** DONE_AND_LOCKED
-- make sure config.json is in .gitignore **Status:** DONE_AND_LOCKED
-- make sure config.json is available in Docker container **Status:** DONE_AND_LOCKED
-- repo.go must check if sources table is empty add url and comment from config.json **Status:** DONE_AND_LOCKED
-
-- create a top-level PipelineService (or IngestionService) that calls each step service in sequence. (the steps will be: 1. get the html [implemented in HtmlService], 2. process the HTML with the help of OpenAI [chapter "3. Component of processing the Data using OpenAI API."] 3. retrieve the zip files [not implemented yet] 4. open the zips into the buffer [not implemented yet] 5. process the buffer with the help of OpenAI into JSON [not implemented yet] 6. put the JSON into the DB [not implemented yet]) **Status:** DONE_AND_LOCKED
-- keep each step as its own service (e.g., HtmlService, OpenAIExtractService, ZipService, CsvParseService, DataService) for testability. **Status:** DONE_AND_LOCKED
-
-- logs model must have event identifier that is given by PipelineService when starting the process. This will allow me to filter out log events per session. **Status:** DONE_AND_LOCKED
-- PipelineService when triggered by cron or refresh endpoint, generates new eventId and assignes it to log records that are created in this session of refreshing the data. **Status:** DONE_AND_LOCKED
-- logs endpoint must allow filter eventId. **Status:** DONE_AND_LOCKED
-- when creating log record of OPENAPI_CALL_CVS_PARSE, attache the filename that is currently parsed. **Status:** DONE_AND_LOCKED
-- log service must have truncate logs function. **Status:** DONE_AND_LOCKED
-- log controller must have DELETE /logs endpoint that calls truncate logs function from logs service. **Status:** DONE_AND_LOCKED
-- refresh endpoint must be asynchronus: just run it as go routine. **Status:** DONE_AND_LOCKED
-
-- all data aquired when OPENAPI_CALL_CSV_PARSE is SUCCESS must be in the JSON that will be parsed into model that will be stored in the database. Currently if any of the OpenAPI calls that parse CSV fails, nothing is available in database data table - but must be. **Status:** DONE_AND_LOCKED
-
-- no reason to pass the same CSV to OpenAI if it failed: the input is the same and fail next time. One attempt only.   **Status:** DONE_AND_LOCKED
-
-- add function to the CSV service, that extracts year and month from filename.  **Status:** DONE_AND_LOCKED
-- change the schema sent to OpenAI when parsing the CSV: do not require year and month properties to be added by OpenAI. Add year and month when the payload comes back.  **Status:** DONE_AND_LOCKED
-
-- add functionality / SQL grouping to DataService's GetData. This function must be able to group data by period of year or year and month (means it returns results by years or by year and month (but not all rows of the year and month)) - sum(TotalVolumeAuctioned), sum(TotalVolumeSold), avg(WeightedAvgPriceEurPerMwh). If sum_tech=true then summarize the volumes and get avarage of price.   **Status:** IN_PROGRESS
-- add GET /data endpoints filters: group_period=year|month & sum_tech=true (default false) **Status:** IN_PROGRESS
-
-- create a /index.html page that is using XHR request calling /data endpoint. Draws HTML of the data of year, month, tech, volumes and avarage price. The page must have possibility to specify period start, period end, group by and sum tech options. Do not use any fancy libraries - just xhr request, and createElements. This page is intended to check if the numbers of the /data endpoint are correct. **Status:** IN_PROGRESS
-
-- clarification about the grouping: **Status:** IN_PROGRESS
-0. year filter works nicely - that is considered done
-1. Not working: If the group by year is on, the result contains every year once. Like if the data countains 2024-01, 2024-02, 2025-03, 2025-05 then it returns summed and avaraged data of year 2024 and 2025 for every technology.
-2. Not working: It the group by month is on the dataset 2024-01, 2024-02, 2025-03, 2025-05 will return all these month's and all technologies in these months summed and avaraged
-3. Not working: In case the sum_tech is true, and group by year, it means get all data of 2024 is sum and avarage is found and second entry is 2025 with all totals summed and avarages avaraged
-The objective here is to see how the price has changed over the years or month. Does the technology has effect on the price or not. 
-In the next step I need to build a frontend that draws a diagrams of the price change - think of the business analysis while fixing the GetData in the Data Service.
-
-  
 
 ## Components 
 
@@ -389,6 +351,46 @@ Schema:
 - can DELETE /data (truncates everything)
 
 ### 8. Create table to avoid duplications: one file can be processed only once **Status:** IN_PROGRESS
+
+
+## Amendments
+- add config.json (store default source data URL: "https://www.eex.com/en/markets/energy-certificates/french-auctions-power" and comment "Default source") **Status:** DONE_AND_LOCKED
+- make sure config.json is in .gitignore **Status:** DONE_AND_LOCKED
+- make sure config.json is available in Docker container **Status:** DONE_AND_LOCKED
+- repo.go must check if sources table is empty add url and comment from config.json **Status:** DONE_AND_LOCKED
+
+- create a top-level PipelineService (or IngestionService) that calls each step service in sequence. (the steps will be: 1. get the html [implemented in HtmlService], 2. process the HTML with the help of OpenAI [chapter "3. Component of processing the Data using OpenAI API."] 3. retrieve the zip files [not implemented yet] 4. open the zips into the buffer [not implemented yet] 5. process the buffer with the help of OpenAI into JSON [not implemented yet] 6. put the JSON into the DB [not implemented yet]) **Status:** DONE_AND_LOCKED
+- keep each step as its own service (e.g., HtmlService, OpenAIExtractService, ZipService, CsvParseService, DataService) for testability. **Status:** DONE_AND_LOCKED
+
+- logs model must have event identifier that is given by PipelineService when starting the process. This will allow me to filter out log events per session. **Status:** DONE_AND_LOCKED
+- PipelineService when triggered by cron or refresh endpoint, generates new eventId and assignes it to log records that are created in this session of refreshing the data. **Status:** DONE_AND_LOCKED
+- logs endpoint must allow filter eventId. **Status:** DONE_AND_LOCKED
+- when creating log record of OPENAPI_CALL_CVS_PARSE, attache the filename that is currently parsed. **Status:** DONE_AND_LOCKED
+- log service must have truncate logs function. **Status:** DONE_AND_LOCKED
+- log controller must have DELETE /logs endpoint that calls truncate logs function from logs service. **Status:** DONE_AND_LOCKED
+- refresh endpoint must be asynchronus: just run it as go routine. **Status:** DONE_AND_LOCKED
+
+- all data aquired when OPENAPI_CALL_CSV_PARSE is SUCCESS must be in the JSON that will be parsed into model that will be stored in the database. Currently if any of the OpenAPI calls that parse CSV fails, nothing is available in database data table - but must be. **Status:** DONE_AND_LOCKED
+
+- no reason to pass the same CSV to OpenAI if it failed: the input is the same and fail next time. One attempt only.   **Status:** DONE_AND_LOCKED
+
+- add function to the CSV service, that extracts year and month from filename.  **Status:** DONE_AND_LOCKED
+- change the schema sent to OpenAI when parsing the CSV: do not require year and month properties to be added by OpenAI. Add year and month when the payload comes back.  **Status:** DONE_AND_LOCKED
+
+- add functionality / SQL grouping to DataService's GetData. This function must be able to group data by period of year or year and month (means it returns results by years or by year and month (but not all rows of the year and month)) - sum(TotalVolumeAuctioned), sum(TotalVolumeSold), avg(WeightedAvgPriceEurPerMwh). If sum_tech=true then summarize the volumes and get avarage of price.   **Status:** IN_PROGRESS
+- add GET /data endpoints filters: group_period=year|month & sum_tech=true (default false) **Status:** IN_PROGRESS
+
+- create a /index.html page that is using XHR request calling /data endpoint. Draws HTML of the data of year, month, tech, volumes and avarage price. The page must have possibility to specify period start, period end, group by and sum tech options. Do not use any fancy libraries - just xhr request, and createElements. This page is intended to check if the numbers of the /data endpoint are correct. **Status:** IN_PROGRESS
+
+- clarification about the grouping: **Status:** IN_PROGRESS
+0. year filter works nicely - that is considered done
+1. Not working: If the group by year is on, the result contains every year once. Like if the data countains 2024-01, 2024-02, 2025-03, 2025-05 then it returns summed and avaraged data of year 2024 and 2025 for every technology.
+2. Not working: It the group by month is on the dataset 2024-01, 2024-02, 2025-03, 2025-05 will return all these month's and all technologies in these months summed and avaraged
+3. Not working: In case the sum_tech is true, and group by year, it means get all data of 2024 is sum and avarage is found and second entry is 2025 with all totals summed and avarages avaraged
+The objective here is to see how the price has changed over the years or month. Does the technology has effect on the price or not. 
+In the next step I need to build a frontend that draws a diagrams of the price change - think of the business analysis while fixing the GetData in the Data Service.
+
+  
 
 #### 1. Objectives
 - no ZIP file must be parsed twice.
